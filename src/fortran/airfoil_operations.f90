@@ -33,7 +33,7 @@ module airfoil_operations
 !
 !=============================================================================80
 subroutine get_seed_airfoil(seed_airfoil, airfoil_file, naca_digits, foil,     &
-                            xoffset, zoffset, foilscale)
+                            xoffset, zoffset, foilscale, errval, errmsg)
 
   use vardef,       only : airfoil_type
   use xfoil_driver, only : smooth_paneling
@@ -42,28 +42,35 @@ subroutine get_seed_airfoil(seed_airfoil, airfoil_file, naca_digits, foil,     &
   character(4), intent(in) :: naca_digits
   type(airfoil_type), intent(out) :: foil
   double precision, intent(out) :: xoffset, zoffset, foilscale
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
 
   type(airfoil_type) :: tempfoil
   integer :: pointsmcl
+
+  errval = 0
+  errmsg = ''
 
   if (trim(seed_airfoil) == 'from_file') then
 
 !   Read seed airfoil from file
 
-    call load_airfoil(airfoil_file, tempfoil)
+    call load_airfoil(airfoil_file, tempfoil, errval, errmsg)
+    if (errval /= 0) return
 
   elseif (trim(seed_airfoil) == 'four_digit') then
 
 !   Create seed airfoil from NACA 4-digit series
 
     pointsmcl = 200
-    call naca_four_digit(naca_digits, pointsmcl, tempfoil)
+    call naca_four_digit(naca_digits, pointsmcl, tempfoil, errval, errmsg)
+    if (errval /= 0) return
 
   else
 
-    write(*,*) "Error: seed_airfoil should be 'from_file' or 'four_digit'."
-    write(*,*)
-    stop
+    errval = 1
+    errmsg = "seed_airfoil should be 'from_file' or 'four_digit'."
+    return
 
   end if
 
@@ -88,26 +95,34 @@ end subroutine get_seed_airfoil
 ! correctly
 !
 !=============================================================================80
-subroutine load_airfoil(filename, foil)
+subroutine load_airfoil(filename, foil, errval, errmsg)
 
   use vardef, only : airfoil_type
 
   character(*), intent(in) :: filename
   type(airfoil_type), intent(out) :: foil
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
 
   logical :: labeled
 
   write(*,*) 'Reading airfoil from file: '//trim(filename)//' ...'
   write(*,*)
 
+  errval = 0
+  errmsg = ''
+
 ! Read number of points and allocate coordinates
 
-  call airfoil_points(filename, foil%npoint, labeled)
+  call airfoil_points(filename, foil%npoint, labeled, errval, errmsg)
+  if (errval /= 0) return
   call allocate_airfoil(foil)
 
 ! Read airfoil from file
 
-  call airfoil_read(filename, foil%npoint, labeled, foil%x, foil%z)
+  call airfoil_read(filename, foil%npoint, labeled, foil%x, foil%z, errval,    &
+                    errmsg)
+  if (errval /= 0) return
 
 ! Change point ordering to counterclockwise, if necessary
 
@@ -120,7 +135,7 @@ end subroutine load_airfoil
 ! Creates a NACA 4-digit airfoil (top and bottom surfaces)
 !
 !=============================================================================80
-subroutine naca_four_digit(naca_digits, pointsmcl, foil)
+subroutine naca_four_digit(naca_digits, pointsmcl, foil, errval, errmsg)
 
   use parametrization,  only : normal_spacing
   use vardef,           only : airfoil_type
@@ -128,10 +143,15 @@ subroutine naca_four_digit(naca_digits, pointsmcl, foil)
   character(4), intent(in) :: naca_digits
   integer, intent(in) :: pointsmcl
   type(airfoil_type), intent(out) :: foil
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
 
   integer :: i
   double precision :: chord, d0, width, m, p, t
   double precision, dimension(pointsmcl) :: xmcl, zmcl, zth, th, xt, xb, zt, zb
+
+  errval = 0
+  errmsg = ''
 
   write(*,*) 'Generating seed airfoil: NACA '//trim(naca_digits)//' ...'
   write(*,*)
@@ -141,8 +161,9 @@ subroutine naca_four_digit(naca_digits, pointsmcl, foil)
 ! Check to make sure input is sane
 
   do i = 1, 4
-    if (.not. isnum(naca_digits(i:i))) &
-      call my_stop("NACA digits should be numeric.")
+    if (.not. isnum(naca_digits(i:i))) then
+      errval = 1
+      errmsg = 'NACA digits should be numeric.'
   end do
 
 ! Read naca digits into real values
@@ -221,23 +242,28 @@ end subroutine naca_four_digit
 ! whether it is labeled or plain.
 !
 !=============================================================================80
-subroutine airfoil_points(filename, npoints, labeled)
+subroutine airfoil_points(filename, npoints, labeled, errval, errmsg)
 
   character(*), intent(in) :: filename
   integer, intent(out) :: npoints
   logical, intent(out) :: labeled
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
 
   integer :: iunit, ioerr
   double precision :: dummyx, dummyz
+
+  errval = 0
+  errmsg = ''
 
 ! Open airfoil file
 
   iunit = 12
   open(unit=iunit, file=filename, status='old', position='rewind', iostat=ioerr)
   if (ioerr /= 0) then
-     write(*,*) 'Error: cannot find airfoil file '//trim(filename)
-     write(*,*)
-     stop
+     errval = 1
+     errmsg = 'cannot find airfoil file '//trim(filename)//'.'
+     return
   end if
 
 ! Read first line; determine if it is a title or not
@@ -270,24 +296,29 @@ end subroutine airfoil_points
 ! Also checks for incorrect format.
 !
 !=============================================================================80
-subroutine airfoil_read(filename, npoints, labeled, x, z)
+subroutine airfoil_read(filename, npoints, labeled, x, z, errval, errmsg)
 
   character(*), intent(in) :: filename
   integer, intent(in) :: npoints
   logical, intent(in) :: labeled
   double precision, dimension(:), intent(inout) :: x, z
+  integer, intent(out) :: errval
+  character(80) :: intent(out) :: errmsg
 
   integer :: i, iunit, ioerr, nswitch
   double precision :: dir1, dir2
+
+  errval = 0
+  errmsg = ''
 
 ! Open airfoil file
 
   iunit = 12
   open(unit=iunit, file=filename, status='old', position='rewind', iostat=ioerr)
   if (ioerr /= 0) then
-     write(*,*) 'Error: cannot find airfoil file '//trim(filename)
-     write(*,*)
-     stop
+     errval = 1
+     errmsg = 'cannot find airfoil file '//trim(filename)//'.'
+     return
   end if
 
 ! Read points from file
@@ -321,11 +352,9 @@ subroutine airfoil_read(filename, npoints, labeled, x, z)
   end if
 
 500 close(iunit)
-  write(*,'(A)') "Error: incorrect format in "//trim(filename)//". File should"
-  write(*,'(A)') "have x and y coordinates in 2 columns to form a single loop,"
-  write(*,'(A)') "and there should be no blank lines.  See the user guide for"
-  write(*,'(A)') "more information."
-  stop
+  errval = 1
+  errmsg = 'incorrect format in '//trim(filename)//'.'
+  return
 
 end subroutine airfoil_read
 
