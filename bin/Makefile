@@ -1,8 +1,8 @@
 ####### General Compiler Flags ######################################
 
-RELEASEFLAGS=-g -O3 -static
-FCFLAGS=$(RELEASEFLAGS)
-#FCFLAGS=-g -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -Wall
+#RELEASEFLAGS=-g -O3 -static
+#FCFLAGS=$(RELEASEFLAGS)
+FCFLAGS=-g -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -Wall
 #The below flags are needed for static linking with openmp
 #FCFLAGS=-g -O3 -static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -flto
 #FCFLAGS=-g -O3
@@ -35,13 +35,15 @@ endif
 
 ####### Definitions, rules, targets #################################
 
-OBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o airfoil_evaluation.o optimization_util.o particle_swarm.o genetic_algorithm.o simplex_search.o input_output.o input_sanity.o memory_util.o optimization_driver.o main.o
+#OBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o airfoil_evaluation.o optimization_util.o particle_swarm.o genetic_algorithm.o simplex_search.o input_output.o input_sanity.o memory_util.o optimization_driver.o xoptfoil_interface.o dummy_main.o
+OBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o xoptfoil_interface.o dummy_main.o
 EXE=xoptfoil
 XOBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o airfoil_evaluation.o input_output.o xfoil_only.o
 XEXE=xfoil_only
 DIR=../src
 
-all: $(EXE) $(XEXE)
+# all: $(EXE) $(XEXE)
+all: $(EXE)
 
 remake: clean all
 
@@ -122,6 +124,12 @@ optimization_driver.o: $(DIR)/fortran/optimization_driver.f90
 
 main.o: $(DIR)/fortran/main.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/main.f90
+
+xoptfoil_interface.o: $(DIR)/fortran/xoptfoil_interface.f90
+	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xoptfoil_interface.f90
+
+dummy_main.o: $(DIR)/fortran/dummy_main.f90
+	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/dummy_main.f90
 
 xfoil_only.o: $(DIR)/fortran/xfoil_only.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xfoil_only.f90

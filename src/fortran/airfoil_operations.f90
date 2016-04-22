@@ -164,6 +164,7 @@ subroutine naca_four_digit(naca_digits, pointsmcl, foil, errval, errmsg)
     if (.not. isnum(naca_digits(i:i))) then
       errval = 1
       errmsg = 'NACA digits should be numeric.'
+    end if
   end do
 
 ! Read naca digits into real values
@@ -303,7 +304,7 @@ subroutine airfoil_read(filename, npoints, labeled, x, z, errval, errmsg)
   logical, intent(in) :: labeled
   double precision, dimension(:), intent(inout) :: x, z
   integer, intent(out) :: errval
-  character(80) :: intent(out) :: errmsg
+  character(80), intent(out) :: errmsg
 
   integer :: i, iunit, ioerr, nswitch
   double precision :: dir1, dir2
