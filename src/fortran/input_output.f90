@@ -31,7 +31,6 @@ module input_output
 subroutine read_inputs(input_file, errval, errmsg)
 
   use vardef
-  use airfoil_operations, only : my_stop
  
   character(*), intent(in) :: input_file
   integer, intent(out) :: errval
@@ -113,7 +112,8 @@ subroutine read_inputs(input_file, errval, errmsg)
 
   rewind(iunit)
   read(iunit, iostat=iostat1, nml=optimization_options)
-  call namelist_check('optimization_options', iostat1, 'warn')
+  call namelist_check('optimization_options', iostat1, 'warn', errval, errmsg)
+  if (errval /= 0) return
 
 ! Error checking and setting search algorithm options
 
@@ -156,10 +156,12 @@ subroutine read_inputs(input_file, errval, errmsg)
 
   rewind(iunit)
   read(iunit, iostat=iostat1, nml=operating_conditions)
-  call namelist_check('operating_conditions', iostat1, 'stop')
+  call namelist_check('operating_conditions', iostat1, 'stop', errval, errmsg)
+  if (errval /= 0) return
   rewind(iunit)
   read(iunit, iostat=iostat1, nml=constraints)
-  call namelist_check('constraints', iostat1, 'stop')
+  call namelist_check('constraints', iostat1, 'stop', errval, errmsg)
+  if (errval /= 0) return
 
 ! Store operating points where flap setting will be optimized
 
@@ -187,7 +189,8 @@ subroutine read_inputs(input_file, errval, errmsg)
 
   rewind(iunit)
   read(iunit, iostat=iostat1, nml=initialization)
-  call namelist_check('initialization', iostat1, 'warn')
+  call namelist_check('initialization', iostat1, 'warn', errval, errmsg)
+  if (errval /= 0) return
 
 ! Set default particle swarm options
 
@@ -261,7 +264,9 @@ subroutine read_inputs(input_file, errval, errmsg)
 
       rewind(iunit)
       read(iunit, iostat=iostat1, nml=particle_swarm_options)
-      call namelist_check('particle_swarm_options', iostat1, 'warn')
+      call namelist_check('particle_swarm_options', iostat1, 'warn', errval,   &
+                          errmsg)
+      if (errval /= 0) return
       pso_options%pop = pso_pop
       pso_options%tol = pso_tol
       pso_options%maxspeed = initial_perturb
@@ -283,7 +288,9 @@ subroutine read_inputs(input_file, errval, errmsg)
 
       rewind(iunit)
       read(iunit, iostat=iostat1, nml=genetic_algorithm_options)
-      call namelist_check('genetic_algorithm_options', iostat1, 'warn')
+      call namelist_check('genetic_algorithm_options', iostat1, 'warn', errval,&
+                          errmsg)
+      if (errval /= 0) return
       ga_options%pop = ga_pop
       ga_options%tol = ga_tol
       ga_options%maxit = ga_maxit
@@ -307,11 +314,10 @@ subroutine read_inputs(input_file, errval, errmsg)
 
     else
 
-      write(*,*)
-      write(*,*) "Namelist error: global search type '"//trim(global_search)// &
-                 "' is not available."
-      write(*,*)
-      stop
+      errval = 1
+      errmsg = "global search type '"//trim(global_search)//&
+                "' is not available."
+      return
      
     end if
 
@@ -326,7 +332,8 @@ subroutine read_inputs(input_file, errval, errmsg)
 
       rewind(iunit)
       read(iunit, iostat=iostat1, nml=simplex_options)
-      call namelist_check('simplex_options', iostat1, 'warn')
+      call namelist_check('simplex_options', iostat1, 'warn', errval, errmsg)
+      if (errval /= 0) return
       ds_options%tol = simplex_tol
       ds_options%maxit = simplex_maxit
       ds_options%write_designs = write_designs
@@ -338,11 +345,10 @@ subroutine read_inputs(input_file, errval, errmsg)
 
     else
 
-      write(*,*)
-      write(*,*) "Namelist error: local search type '"//trim(local_search)//   &
-                 "' is not available."
-      write(*,*)
-      stop
+      errval = 1
+      errmsg = "local search type '"//trim(local_search)//&
+               "' is not available."
+      return
      
     end if
 
@@ -373,10 +379,12 @@ subroutine read_inputs(input_file, errval, errmsg)
 
   rewind(iunit)
   read(iunit, iostat=iostat1, nml=xfoil_run_options)
-  call namelist_check('xfoil_run_options', iostat1, 'warn')
+  call namelist_check('xfoil_run_options', iostat1, 'warn', errval, errmsg)
+  if (errval /= 0) return
   rewind(iunit)
   read(iunit, iostat=iostat1, nml=xfoil_paneling_options)
-  call namelist_check('xfoil_paneling_options', iostat1, 'warn')
+  call namelist_check('xfoil_paneling_options', iostat1, 'warn', errval, errmsg)
+  if (errval /= 0) return
 
   xfoil_options%ncrit = ncrit
   xfoil_options%xtript = xtript
@@ -402,7 +410,8 @@ subroutine read_inputs(input_file, errval, errmsg)
   match_foils = .false.
   matchfoil_file = 'none'
   read(iunit, iostat=iostat1, nml=matchfoil_options)
-  call namelist_check('matchfoil_options', iostat1, 'warn')
+  call namelist_check('matchfoil_options', iostat1, 'warn', errval, errmsg)
+  if (errval /= 0) return
 
 ! Close the input file
 
@@ -594,121 +603,273 @@ subroutine read_inputs(input_file, errval, errmsg)
 ! Optimization settings
 
   if (trim(seed_airfoil) /= 'from_file' .and.                                  &
-      trim(seed_airfoil) /= 'four_digit')                                      &
-    call my_stop("seed_airfoil must be 'from_file' or 'four_digit'.")
+      trim(seed_airfoil) /= 'four_digit') then
+    errval = 1
+    errmsg = "seed_airfoil must be 'from_file' or 'four_digit'."
+    return
+  end if
   if (trim(shape_functions) /= 'hicks-henne' .and.                             &
-      trim(shape_functions) /= 'naca')                                         &
-    call my_stop("shape_functions must be 'hicks-henne' or 'naca'.")
-  if (nfunctions_top < 1)                                                      &
-    call my_stop("nfunctions_top must be > 0.")
-  if (nfunctions_bot < 1)                                                      &
-    call my_stop("nfunctions_bot must be > 0.")
-  if (initial_perturb <= 0.d0)                                                 &
-    call my_stop("initial_perturb must be > 0.")
-  if (min_bump_width <= 0.d0)                                                  &
-    call my_stop("min_bump_width must be > 0.")
+      trim(shape_functions) /= 'naca') then
+    errval = 1
+    errmsg = "shape_functions must be 'hicks-henne' or 'naca'."
+    return
+  end if
+  if (nfunctions_top < 1) then
+    errval = 1
+    errmsg = "nfunctions_top must be > 0."
+    return
+  end if
+  if (nfunctions_bot < 1) then
+    errval = 1
+    errmsg = "nfunctions_bot must be > 0."
+    return
+  end if
+  if (initial_perturb <= 0.d0) then
+    errval = 1
+    errmsg = "initial_perturb must be > 0."
+    return
+  end if
+  if (min_bump_width <= 0.d0) then
+    errval = 1
+    errmsg = "min_bump_width must be > 0."
+    return
+  end if
 
 ! Operating points
 
-  if (noppoint < 1) call my_stop("noppoint must be > 0.")
-  if ((use_flap) .and. (x_flap <= 0.0)) call my_stop("x_flap must be > 0.")
-  if ((use_flap) .and. (x_flap >= 1.0)) call my_stop("x_flap must be < 1.")
+  if (noppoint < 1) then
+    errval = 1
+    errmsg = "noppoint must be > 0."
+    return
+  end if
+  if ((use_flap) .and. (x_flap <= 0.0)) then
+    errval = 1
+    errmsg = "x_flap must be > 0."
+    return
+  end if
+  if ((use_flap) .and. (x_flap >= 1.0)) then
+    errval = 1
+    errmsg = "x_flap must be < 1."
+    return
+  end if
 
   do i = 1, noppoint
-    if (trim(op_mode(i)) /= 'spec-cl' .and. trim(op_mode(i)) /= 'spec-al')     &
-      call my_stop("op_mode must be 'spec-al' or 'spec-cl'.")
-    if (reynolds(i) <= 0.d0) call my_stop("reynolds must be > 0.")
-    if (mach(i) < 0.d0) call my_stop("mach must be >= 0.")
+    if (trim(op_mode(i)) /= 'spec-cl' .and. trim(op_mode(i)) /= 'spec-al') then
+      errval = 1
+      errmsg = "op_mode must be 'spec-al' or 'spec-cl'."
+      return
+    end if
+    if (reynolds(i) <= 0.d0) then
+      errval = 1
+      errmsg = "reynolds must be > 0."
+      return
+    end if
+    if (mach(i) < 0.d0) then
+      errval = 1
+      errmsg = "mach must be >= 0."
+      return
+    end if
     if (trim(flap_selection(i)) /= 'specify' .and.                             &
-        trim(flap_selection(i)) /= 'optimize')                                 &
-      call my_stop("flap_selection must be 'specify' or 'optimize'.")
-    if (flap_degrees(i) < -90.d0) call my_stop("flap_degrees must be > -90.")
-    if (flap_degrees(i) > 90.d0) call my_stop("flap_degrees must be < 90.")
-    if (weighting(i) <= 0.d0) call my_stop("weighting must be > 0.")
+        trim(flap_selection(i)) /= 'optimize') then
+      errval = 1
+      errmsg = "flap_selection must be 'specify' or 'optimize'."
+      return
+    end if
+    if (flap_degrees(i) < -90.d0) then
+      errval = 1
+      errmsg = "flap_degrees must be > -90."
+      return
+    end if
+    if (flap_degrees(i) > 90.d0) then
+      errval = 1
+      errmsg = "flap_degrees must be < 90."
+      return
+    end if
+    if (weighting(i) <= 0.d0) then
+      errval = 1
+      errmsg = "weighting must be > 0."
+      return
+    end if
     if (trim(optimization_type(i)) /= 'min-drag' .and.                         &
-      trim(optimization_type(i)) /= 'max-glide' .and.                          &
-      trim(optimization_type(i)) /= 'min-sink' .and.                           &
-      trim(optimization_type(i)) /= 'max-lift')                                &
-      call my_stop("optimization_type must be 'min-drag', 'max-glide', "//     &
-                   "min-sink', or 'max-lift'.")
+        trim(optimization_type(i)) /= 'max-glide' .and.                        &
+        trim(optimization_type(i)) /= 'min-sink' .and.                         &
+        trim(optimization_type(i)) /= 'max-lift') then
+      errval = 1 
+      errmsg = "optimization_type must be 'min-drag', 'max-glide', "//&
+               "min-sink', or 'max-lift'."
+      return
+    end if
   end do
 
 ! Constraints
 
   if (trim(seed_violation_handling) /= 'stop' .and.                            &
-      trim(seed_violation_handling) /= 'warn')                                 &
-    call my_stop("seed_violation_handling must be 'stop' or 'warn'.")
-  if (min_thickness <= 0.d0) call my_stop("min_thickness must be > 0.")
-  if (max_thickness <= 0.d0) call my_stop("max_thickness must be > 0.")
+      trim(seed_violation_handling) /= 'warn') then
+    errval = 1
+    errmsg = "seed_violation_handling must be 'stop' or 'warn'."
+    return
+  end if
+  if (min_thickness <= 0.d0) then
+    errval = 1
+    errmsg = "min_thickness must be > 0."
+    return
+  end if
+  if (max_thickness <= 0.d0) then
+    errval = 1
+    errmsg = "max_thickness must be > 0."
+    return
+  end if
   do i = 1, noppoint
     if (trim(moment_constraint_type(i)) /= 'use_seed' .and.                    &
-      trim(moment_constraint_type(i)) /= 'specify' .and.                       &
-      trim(moment_constraint_type(i)) /= 'none')                               &
-      call my_stop("moment_constraint_type must be 'use_seed', 'specify', "//  &
-                 "or 'none'.")
+        trim(moment_constraint_type(i)) /= 'specify' .and.                     &
+        trim(moment_constraint_type(i)) /= 'none')  then
+      errval = 1
+      errmsg = "moment_constraint_type must be 'use_seed', 'specify', "//&
+               "or 'none'."
+      return
+    end if
   end do
-  if (min_te_angle <= 0.d0) call my_stop("min_te_angle must be > 0.")
-  if (max_curv_reverse < 1) call my_stop("max_curv_reverse must be > 0.")
-  if (curv_threshold <= 0.d0) call my_stop("curv_threshold must be > 0.")
+  if (min_te_angle <= 0.d0) then
+    errval = 1
+    errmsg = "min_te_angle must be > 0."
+    return
+  end if
+  if (max_curv_reverse < 1) then
+    errval = 1
+    errmsg = "max_curv_reverse must be > 0."
+    return
+  end if
+  if (curv_threshold <= 0.d0) then
+    errval = 1
+    errmsg = "curv_threshold must be > 0."
+    return
+  end if
   if (symmetrical)                                                             &
     write(*,*) "Mirroring top half of seed airfoil for symmetrical constraint."
-  if (min_flap_degrees >= max_flap_degrees)                                    &
-    call my_stop("min_flap_degrees must be less than max_flap_degrees.")
-  if (min_flap_degrees <= -90.d0)                                              &
-    call my_stop("min_flap_degrees must be greater than -90.")
-  if (max_flap_degrees >= 90.d0)                                               &
-    call my_stop("max_flap_degrees must be less than 90.")
+  if (min_flap_degrees >= max_flap_degrees) then
+    errval = 1
+    errmsg = "min_flap_degrees must be less than max_flap_degrees."
+    return
+  end if
+  if (min_flap_degrees <= -90.d0) then
+    errval = 1
+    errmsg = "min_flap_degrees must be greater than -90."
+    return
+  end if
+  if (max_flap_degrees >= 90.d0) then
+    errval = 1
+    errmsg = "max_flap_degrees must be less than 90."
+    return
+  end if
 
 ! Initialization options
     
-  if ((feasible_limit <= 0.d0) .and. feasible_init)                            &
-    call my_stop("feasible_limit must be > 0.")
-  if ((feasible_init_attempts < 1) .and. feasible_init)                        &
-    call my_stop("feasible_init_attempts must be > 0.")
+  if ((feasible_limit <= 0.d0) .and. feasible_init) then
+    errval = 1
+    errmsg = "feasible_limit must be > 0."
+    return
+  end if
+  if ((feasible_init_attempts < 1) .and. feasible_init) then
+    errval = 1
+    errmsg = "feasible_init_attempts must be > 0."
+    return
+  end if
 
 ! Optimizer options
 
   if (trim(search_type) == 'global' .or.                                       &
-       trim(search_type) == 'global_and_local') then
+      trim(search_type) == 'global_and_local') then
 
     if (trim(global_search) == 'particle_swarm') then
 
 !     Particle swarm options
 
-      if (pso_pop < 1) call my_stop("pso_pop must be > 0.")
-      if (pso_tol <= 0.d0) call my_stop("pso_tol must be > 0.")
-      if (pso_maxit < 1) call my_stop("pso_maxit must be > 0.")  
+      if (pso_pop < 1) then
+        errval = 1
+        errmsg = "pso_pop must be > 0."
+        return
+      end if
+      if (pso_tol <= 0.d0) then
+        errval = 1
+        errmsg = "pso_tol must be > 0."
+        return
+      end if
+      if (pso_maxit < 1) then
+        errval = 1
+        errmsg = "pso_maxit must be > 0."
+        return
+      end if
       if ( (trim(pso_convergence_profile) /= "quick") .and.                    &
-           (trim(pso_convergence_profile) /= "exhaustive") )                   &
-        call my_stop("pso_convergence_profile must be 'exhaustive' "//&
-                     "or 'quick'.")
+           (trim(pso_convergence_profile) /= "exhaustive") ) then
+        errval = 1
+        errmsg = "pso_convergence_profile must be 'exhaustive' "//&
+                 "or 'quick'."
+        return
+      end if
 
     else if (trim(global_search) == 'genetic_algorithm') then
 
 !     Genetic algorithm options
 
-      if (ga_pop < 1) call my_stop("ga_pop must be > 0.")
-      if (ga_tol <= 0.d0) call my_stop("ga_tol must be > 0.")
-      if (ga_maxit < 1) call my_stop("ga_maxit must be > 0.")
+      if (ga_pop < 1) then
+        errval = 1
+        errmsg = "ga_pop must be > 0."
+        return
+      end if
+      if (ga_tol <= 0.d0) then
+        errval = 1
+        errmsg = "ga_tol must be > 0."
+        return
+      end if
+      if (ga_maxit < 1) then
+        errval = 1
+        errmsg = "ga_maxit must be > 0."
+        return
+      end if
       if ( (trim(parents_selection_method) /= "roulette") .and.                &
            (trim(parents_selection_method) /= "tournament") .and.              &
-           (trim(parents_selection_method) /= "random") )                      &
-        call my_stop("parents_selection_method must be 'roulette', "//&
-                     "'tournament', or 'random'.")
-      if ( (parent_fraction <= 0.d0) .or. (parent_fraction > 1.d0) )           &
-        call my_stop("parent_fraction must be > 0 and <= 1.")
-      if (roulette_selection_pressure <= 0.d0)                                 &
-        call my_stop("roulette_selection_pressure must be > 0.")
+           (trim(parents_selection_method) /= "random") ) then
+        errval = 1
+        errmsg = "parents_selection_method must be 'roulette', "//&
+                 "'tournament', or 'random'."
+        return
+      end if
+      if ( (parent_fraction <= 0.d0) .or. (parent_fraction > 1.d0) ) then
+        errval = 1 
+        errmsg = "parent_fraction must be > 0 and <= 1."
+        return
+      end if
+      if (roulette_selection_pressure <= 0.d0) then 
+        errval = 1
+        errmsg = "roulette_selection_pressure must be > 0."
+        return
+      end if
       if ( (tournament_fraction <= 0.d0) .or. (tournament_fraction > 1.d0) )   &
-        call my_stop("tournament_fraction must be > 0 and <= 1.")
-      if (crossover_range_factor < 0.d0)                                       &
-        call my_stop("crossover_range_factor must be >= 0.")
-      if ( (mutant_probability < 0.d0) .or. (mutant_probability > 1.d0) )      &
-        call my_stop("mutant_probability must be >= 0 and <= 1.") 
-      if (chromosome_mutation_rate < 0.d0)                                     &
-        call my_stop("chromosome_mutation_rate must be >= 0.")
-      if (mutation_range_factor < 0.d0)                                        &
-        call my_stop("mutation_range_factor must be >= 0.")
+        then 
+        errval = 1
+        errmsg = "tournament_fraction must be > 0 and <= 1."
+        return
+      end if
+      if (crossover_range_factor < 0.d0) then 
+        errval = 1
+        errmsg = "crossover_range_factor must be >= 0."
+        return
+      end if
+      if ( (mutant_probability < 0.d0) .or. (mutant_probability > 1.d0) ) then 
+        errval = 1
+        errmsg = "mutant_probability must be >= 0 and <= 1."
+        return
+      end if
+      if (chromosome_mutation_rate < 0.d0) then 
+        errval = 1
+        errmsg = "chromosome_mutation_rate must be >= 0."
+        return
+      end if
+      if (mutation_range_factor < 0.d0) then 
+        errval = 1
+        errmsg = "mutation_range_factor must be >= 0."
+        return
+      end if
 
     end if
 
@@ -719,33 +880,99 @@ subroutine read_inputs(input_file, errval, errmsg)
 
 !   Simplex options
 
-    if (simplex_tol <= 0.d0) call my_stop("simplex_tol must be > 0.")
-    if (simplex_maxit < 1) call my_stop("simplex_maxit must be > 0.")  
+    if (simplex_tol <= 0.d0) then
+      errval = 1
+      errmsg = "simplex_tol must be > 0."
+      return
+    end if
+    if (simplex_maxit < 1) then
+      errval = 1
+      errmsg = "simplex_maxit must be > 0."
+      return
+    end if
   
   end if
 
 ! XFoil run options
 
-  if (ncrit < 0.d0) call my_stop("ncrit must be >= 0.")
-  if (xtript < 0.d0 .or. xtript > 1.d0)                                        &
-    call my_stop("xtript must be >= 0. and <= 1.")
-  if (xtripb < 0.d0 .or. xtripb > 1.d0)                                        &
-    call my_stop("xtripb must be >= 0. and <= 1.")
-  if (bl_maxit < 1) call my_stop("bl_maxit must be > 0.")
-  if (vaccel < 0.d0) call my_stop("vaccel must be >= 0.")
-  
+  if (ncrit < 0.d0) then
+    errval = 1
+    errmsg = "ncrit must be >= 0."
+    return
+  end if
+  if (xtript < 0.d0 .or. xtript > 1.d0) then
+    errval = 1 
+    errmsg = "xtript must be >= 0. and <= 1."
+    return
+  end if
+  if (xtripb < 0.d0 .or. xtripb > 1.d0) then
+    errval = 1 
+    errmsg = "xtripb must be >= 0. and <= 1."
+    return
+  end if
+  if (bl_maxit < 1) then
+    errval = 1
+    errmsg = "bl_maxit must be > 0."
+    return
+  end if
+  if (vaccel < 0.d0) then
+    errval = 1
+    errmsg = "vaccel must be >= 0."
+    return
+  end if 
+
 ! XFoil paneling options
 
-  if (npan < 20) call my_stop("npan must be >= 20.")
-  if (cvpar <= 0.d0) call my_stop("cvpar must be > 0.")
-  if (cterat <= 0.d0) call my_stop("cterat must be > 0.")
-  if (ctrrat <= 0.d0) call my_stop("ctrrat must be > 0.")
-  if (xsref1 < 0.d0) call my_stop("xsref1 must be >= 0.")
-  if (xsref2 < xsref1) call my_stop("xsref2 must be >= xsref1")
-  if (xsref2 > 1.d0) call my_stop("xsref2 must be <= 1.")
-  if (xpref1 < 0.d0) call my_stop("xpref1 must be >= 0.")
-  if (xpref2 < xpref1) call my_stop("xpref2 must be >= xpref1")
-  if (xpref2 > 1.d0) call my_stop("xpref2 must be <= 1.")
+  if (npan < 20) then
+    errval = 1
+    errmsg = "npan must be >= 20."
+    return
+  end if
+  if (cvpar <= 0.d0) then
+    errval = 1
+    errmsg = "cvpar must be > 0."
+    return
+  end if
+  if (cterat <= 0.d0) then
+    errval = 1
+    errmsg = "cterat must be > 0."
+    return
+  end if
+  if (ctrrat <= 0.d0) then
+    errval = 1
+    errmsg = "ctrrat must be > 0."
+    return
+  end if
+  if (xsref1 < 0.d0) then
+    errval = 1
+    errmsg = "xsref1 must be >= 0."
+    return
+  end if
+  if (xsref2 < xsref1) then
+    errval = 1
+    errmsg = "xsref2 must be >= xsref1"
+    return
+  end if
+  if (xsref2 > 1.d0) then
+    errval = 1
+    errmsg = "xsref2 must be <= 1."
+    return
+  end if
+  if (xpref1 < 0.d0) then
+    errval = 1
+    errmsg = "xpref1 must be >= 0."
+    return
+  end if
+  if (xpref2 < xpref1) then
+    errval = 1
+    errmsg = "xpref2 must be >= xpref1"
+    return
+  end if
+  if (xpref2 > 1.d0) then
+    errval = 1
+    errmsg = "xpref2 must be <= 1."
+    return
+  end if
 
 end subroutine read_inputs
 
@@ -754,15 +981,16 @@ end subroutine read_inputs
 ! Subroutine to read inputs from namelist file - for xfoil_only
 !
 !=============================================================================80
-subroutine read_inputs_xfoil_only(input_file, airfoil_file)
+subroutine read_inputs_xfoil_only(input_file, airfoil_file, errval, errmsg)
 
   use vardef,             only : max_op_points, noppoint, op_mode, op_point,   &
                                  reynolds, mach, use_flap, x_flap, y_flap,     &
                                  flap_degrees, xfoil_options, xfoil_geom_options
-  use airfoil_operations, only : my_stop
  
   character(*), intent(in) :: input_file
   character(80), intent(out) :: airfoil_file
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
 
   logical :: viscous_mode, silent_mode, fix_unconverged, reinitialize
   integer :: bl_maxit, npan
@@ -779,21 +1007,24 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file)
   namelist /xfoil_paneling_options/ npan, cvpar, cterat, ctrrat, xsref1,       &
             xsref2, xpref1, xpref2
 
+  errval = 0
+  errmsg = ''
+
 ! Open input file
 
   iunit = 12
   open(unit=iunit, file=input_file, status='old', iostat=ioerr)
   if (ioerr /= 0) then
-    write(*,*)
-    write(*,*) 'Error: could not find input file '//trim(input_file)//'.'
-    write(*,*)
-    stop
+    errval = 1
+    errmsg = 'could not find input file '//trim(input_file)//'.'
+    return
   end if
 
 ! Read airfoil_to_load namelist options
 
   read(iunit, iostat=iostat1, nml=airfoil_to_load)
-  call namelist_check('airfoil_to_load', iostat1, 'stop')
+  call namelist_check('airfoil_to_load', iostat1, 'stop', errval, errmsg)
+  if (errval /= 0) return
 
 ! Set defaults for operating conditions
 
@@ -810,7 +1041,8 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file)
 ! Read operating conditions and constraints
 
   read(iunit, iostat=iostat1, nml=operating_conditions)
-  call namelist_check('operating_conditions', iostat1, 'stop')
+  call namelist_check('operating_conditions', iostat1, 'stop', errval, errmsg)
+  if (errval /= 0) return
 
 ! Set default xfoil aerodynamics and paneling options
 
@@ -836,9 +1068,11 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file)
 ! Read xfoil options and put them into derived types
 
   read(iunit, iostat=iostat1, nml=xfoil_run_options)
-  call namelist_check('xfoil_run_options', iostat1, 'warn')
+  call namelist_check('xfoil_run_options', iostat1, 'warn', errval, errmsg)
+  if (errval /= 0) return
   read(iunit, iostat=iostat1, nml=xfoil_paneling_options)
-  call namelist_check('xfoil_paneling_options', iostat1, 'warn')
+  call namelist_check('xfoil_paneling_options', iostat1, 'warn', errval, errmsg)
+  if (errval /= 0) return
 
   xfoil_options%ncrit = ncrit
   xfoil_options%xtript = xtript
@@ -931,11 +1165,16 @@ end subroutine read_inputs_xfoil_only
 ! Prints error and stops or warns for bad namelist read
 !
 !=============================================================================80
-subroutine namelist_check(nmlname, errcode, action_missing_nml)
+subroutine namelist_check(nmlname, errcode, action_missing_nml, errval, errmsg)
 
   character(*), intent(in) :: nmlname
   integer, intent(in) :: errcode
   character(*), intent(in) :: action_missing_nml
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  errval = 0
+  errmsg = ''
 
   if (errcode < 0) then
     write(*,*)
@@ -945,18 +1184,15 @@ subroutine namelist_check(nmlname, errcode, action_missing_nml)
       write(*,'(A)') 'Using default values.'
       write(*,*)
     else
-      write(*,'(A)') 'Warning: namelist '//trim(nmlname)//&
-                     ' is required and was not found in input file.'
-      write(*,*)
-      stop
+      errval = 1
+      errmsg = 'namelist '//trim(nmlname)//&
+               ' is required and was not found in input file.'
+      return
     end if
   else if (errcode > 0) then
-    write(*,*)
-    write(*,'(A)') 'Error: unrecognized variable in namelist '//trim(nmlname)//&
-                   '.'
-    write(*,'(A)') 'See User Guide for correct variable names.'
-    write(*,*)
-    stop
+    errval = 1
+    errmsg = 'unrecognized variable in namelist '//trim(nmlname)//'.'
+    return
   else
     continue
   end if

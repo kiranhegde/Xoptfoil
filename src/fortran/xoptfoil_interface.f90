@@ -18,6 +18,9 @@ subroutine read_namelist_inputs(input_file, errval, errmsg)
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
 
+  errval = 0
+  errmsg = ''
+
   call read_inputs(input_file, errval, errmsg)
 
 end subroutine read_namelist_inputs
