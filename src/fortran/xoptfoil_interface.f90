@@ -6,6 +6,24 @@ module xoptfoil_interface
 
 !=============================================================================80
 !
+! Reads inputs from fortran namelist file
+!
+!=============================================================================80
+subroutine read_namelist_inputs(input_file, errval, errmsg)
+
+  use vardef
+  use input_output, only : read_inputs
+
+  character(*), intent(in) :: input_file
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  call read_inputs(input_file, errval, errmsg)
+
+end subroutine read_namelist_inputs
+
+!=============================================================================80
+!
 ! Initializes data for optimization
 !
 !=============================================================================80
@@ -13,15 +31,12 @@ subroutine initialize(errval, errmsg)
 
   use vardef
   use airfoil_operations, only : get_seed_airfoil
+  use xfoil_driver,       only : airfoil_type
 
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
 
   type(airfoil_type) :: buffer_foil
-
-!FIXME: These should go in vardef
-  character(80) :: seed_airfoil, airfoil_file
-  character(4) :: naca_digits
 
   double precision :: xoffset, zoffset, foilscale
 

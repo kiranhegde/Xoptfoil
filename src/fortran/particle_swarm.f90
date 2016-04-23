@@ -21,33 +21,6 @@ module particle_swarm
 
   implicit none
 
-! Options type definition for PSO
-
-  type pso_options_type
-
-    integer :: pop                ! particle swarm population size
-    double precision :: tol       ! tolerance in max radius of designs before
-                                  !   triggering a stop condition
-    double precision :: maxspeed  ! Max speed allowed for particles
-    integer :: maxit              ! Max steps allowed before stopping
-    logical :: feasible_init      ! Whether to enforce initially feasible
-                                  !   designs
-    double precision :: feasible_limit
-                                  ! Max objective function value below which
-                                  !   initial designs are considered feasible
-    integer :: feasible_init_attempts
-                                  ! Number of attempts to try to get a feasible
-                                  !   initial design
-    logical :: write_designs      ! Whether to write best design each time it
-                                  !   changes
-    logical :: relative_fmin_report
-                                  ! If .true., reports improvement over seed
-                                  !   design. Otherwise, reports fmin itself.
-    character(10) :: convergence_profile
-                                  ! 'exhaustive' or 'quick'; exhaustive takes
-                                  !   longer but finds better solutions 
-  end type pso_options_type
-
   contains
 
 !=============================================================================80
@@ -63,7 +36,7 @@ subroutine particleswarm(xopt, fmin, step, fevals, objfunc, x0, xmin, xmax,    &
 
   use math_deps,         only : norm_2
   use optimization_util, only : init_random_seed, initial_designs,             &
-                                design_radius, write_design
+                                design_radius, write_design, pso_options_type
 
   double precision, dimension(:), intent(inout) :: xopt
   double precision, intent(out) :: fmin

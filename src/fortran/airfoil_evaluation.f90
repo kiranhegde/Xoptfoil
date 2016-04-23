@@ -20,15 +20,11 @@ module airfoil_evaluation
 ! Sets up and evaluates the objective function for an airfoil design
 
   use vardef
-  use xfoil_driver, only : xfoil_options_type, xfoil_geom_options_type
 
   implicit none
 
   public
   private :: aero_objective_function, matchfoil_objective_function
-
-  type(xfoil_options_type) :: xfoil_options
-  type(xfoil_geom_options_type) :: xfoil_geom_options
 
 ! Variables used to check that XFoil results are repeatable when needed
 

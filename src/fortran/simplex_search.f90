@@ -21,20 +21,6 @@ module simplex_search
 
   implicit none
 
-! Options type for direct searches
-
-  type ds_options_type
-
-    double precision :: tol       ! tolerance in simplex radius before
-                                  !   triggering a stop condition
-    integer :: maxit              ! Max steps allowed before stopping
-    logical :: write_designs      ! Whether to write best design each time it
-                                  !   changes
-    logical :: relative_fmin_report
-                                  ! If .true., reports improvement over seed
-                                  !   design. Otherwise, reports fmin itself.
-  end type ds_options_type
-
   contains
 
 !=============================================================================80
@@ -46,7 +32,8 @@ subroutine simplexsearch(xopt, fmin, step, fevals, objfunc, x0, given_f0_ref,  &
                          f0_ref, ds_options, restart, restart_write_freq,      &
                          indesigncounter, converterfunc)
 
-  use optimization_util, only : bubble_sort, design_radius, write_design
+  use optimization_util, only : bubble_sort, design_radius, write_design,      &
+                                ds_options_type
 
   double precision, dimension(:), intent(inout) :: xopt
   double precision, intent(out) :: fmin

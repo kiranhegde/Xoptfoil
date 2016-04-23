@@ -21,6 +21,18 @@ module xfoil_driver
 
   implicit none
 
+  type airfoil_type
+
+    integer :: npoint
+    double precision, dimension(:), allocatable :: x, z ! Airfoil coordinates
+    double precision :: xle, zle                        ! Leading edge coords
+    integer :: leclose                                  ! Index closest to LE
+    integer :: addpoint_loc                             ! Whether to add point 
+                                                        !  for LE before or
+                                                        !  after leclose
+
+  end type airfoil_type
+
   type xfoil_options_type
 
     double precision :: ncrit          !Critical ampl. ratio
@@ -52,7 +64,6 @@ module xfoil_driver
 subroutine smooth_paneling(foilin, npoint, foilout)
 
   use xfoil_inc
-  use vardef, only : airfoil_type
 
   type(airfoil_type), intent(in) :: foilin
   integer, intent(in) :: npoint
@@ -176,7 +187,6 @@ subroutine run_xfoil(foil, geom_options, operating_points, op_modes,           &
                      flap_degrees, xfoil_options, lift, drag, moment, viscrms)
 
   use xfoil_inc
-  use vardef,    only : airfoil_type
 
   type(airfoil_type), intent(in) :: foil
   type(xfoil_geom_options_type), intent(in) :: geom_options
@@ -598,7 +608,6 @@ end subroutine xfoil_defaults
 subroutine xfoil_set_airfoil(foil)
 
   use xfoil_inc, only : XB, YB, NB
-  use vardef,    only : airfoil_type
 
   type(airfoil_type), intent(in) :: foil
 

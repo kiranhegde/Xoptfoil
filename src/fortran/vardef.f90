@@ -17,57 +17,72 @@
 
 module vardef
 
-! Data structures for airfoil optimization code
+  use optimization_util, only : pso_options_type, ga_options_type,             &
+                                ds_options_type
+  use xfoil_driver,      only : airfoil_type, xfoil_options_type,              &
+                                xfoil_geom_options_type
 
   implicit none
 
-  type airfoil_type
+! Optimization options
 
-    integer :: npoint
-    double precision, dimension(:), allocatable :: x, z ! Airfoil coordinates
-    double precision :: xle, zle                        ! Leading edge coords
-    integer :: leclose                                  ! Index closest to LE
-    integer :: addpoint_loc                             ! Whether to add point 
-                                                        !  for LE before or
-                                                        !  after leclose
+  character(80) :: search_type, global_search, local_search, seed_airfoil,     &
+                   airfoil_file
+  character(4) :: naca_digits
+  character(11) :: shape_functions
+  integer :: nfunctions_top, nfunctions_bot, restart_write_freq
+  double precision :: initial_perturb, min_bump_width
+  logical :: restart
 
-  end type airfoil_type
+! Operating conditions
 
-! Global variables (mainly needed to preserve generality of optimization
-! routines)
-
-  integer :: noppoint
   integer, parameter :: max_op_points = 30
-  double precision, dimension(:), allocatable :: xseedt, xseedb, zseedt, zseedb
+  integer :: noppoint
   character(7), dimension(max_op_points) :: op_mode
   character(8), dimension(max_op_points) :: flap_selection
-  double precision, dimension(max_op_points) :: op_point, reynolds, mach,      &
-                                           flap_degrees, weighting, scale_factor 
-  double precision :: x_flap, y_flap
-  logical :: use_flap
   character(9), dimension(max_op_points) :: optimization_type
+  double precision, dimension(max_op_points) :: op_point, reynolds, mach,      &
+                                                flap_degrees, weighting 
+  logical :: use_flap
+  double precision :: x_flap, y_flap
+
+! Constraints
+
+  character(4) :: seed_violation_handling
+  character(8), dimension(max_op_points) :: moment_constraint_type
+  double precision :: min_thickness, max_thickness, min_te_angle,              &
+                      curv_threshold, min_flap_degrees, max_flap_degrees
+  double precision, dimension(max_op_points) :: min_moment
+  logical :: check_curvature, symmetrical
+  integer :: max_curv_reverse
+
+! Structures for other options
+
+  type(pso_options_type) :: pso_options
+  type(ga_options_type) :: ga_options
+  type(ds_options_type) :: ds_options
+  type(xfoil_options_type) :: xfoil_options
+  type(xfoil_geom_options_type) :: xfoil_geom_options
+
+! Matchfoils
+
+  logical match_foils
+  character(80) :: matchfoil_file
+
+! Other global variables
+
+  double precision, dimension(max_op_points) :: scale_factor
+  double precision :: growth_allowed
+  integer, dimension(:), allocatable :: constrained_dvs
+
+  double precision, dimension(:), allocatable :: xseedt, xseedb, zseedt, zseedb
   integer :: nflap_optimize          ! Number of operating points where flap 
                                      !   setting will be optimized
   integer, dimension(max_op_points) :: flap_optimize_points
 
   type(airfoil_type) :: curr_foil
-  double precision :: min_thickness, max_thickness, min_te_angle,              &
-                      growth_allowed, min_flap_degrees, max_flap_degrees
-  double precision :: curv_threshold
-  integer :: max_curv_reverse
-  character(4) :: seed_violation_handling
-  character(8), dimension(max_op_points) :: moment_constraint_type
-  double precision, dimension(max_op_points) :: min_moment
-  character(11) :: shape_functions
   double precision, dimension(:), allocatable :: xmatcht, xmatchb, zmatcht,    &
                                                  zmatchb
-  logical :: match_foils
-  logical :: check_curvature
-  logical :: symmetrical
-
-  integer :: nparams_top, nparams_bot
-  double precision :: initial_perturb
-  double precision :: min_bump_width
 
   character(80) :: output_prefix
 

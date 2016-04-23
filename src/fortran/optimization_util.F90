@@ -21,6 +21,95 @@ module optimization_util
 
   implicit none
 
+! Options type definition for PSO
+
+  type pso_options_type
+
+    integer :: pop                ! particle swarm population size
+    double precision :: tol       ! tolerance in max radius of designs before
+                                  !   triggering a stop condition
+    double precision :: maxspeed  ! Max speed allowed for particles
+    integer :: maxit              ! Max steps allowed before stopping
+    logical :: feasible_init      ! Whether to enforce initially feasible
+                                  !   designs
+    double precision :: feasible_limit
+                                  ! Max objective function value below which
+                                  !   initial designs are considered feasible
+    integer :: feasible_init_attempts
+                                  ! Number of attempts to try to get a feasible
+                                  !   initial design
+    logical :: write_designs      ! Whether to write best design each time it
+                                  !   changes
+    logical :: relative_fmin_report
+                                  ! If .true., reports improvement over seed
+                                  !   design. Otherwise, reports fmin itself.
+    character(10) :: convergence_profile
+                                  ! 'exhaustive' or 'quick'; exhaustive takes
+                                  !   longer but finds better solutions 
+  end type pso_options_type
+
+! Options type definition for genetic algorithm
+
+  type ga_options_type
+
+    integer :: pop                ! genetic algorithm population size
+    double precision :: tol       ! tolerance in max radius of designs before
+                                  !   triggering a stop condition
+    integer :: maxit              ! Max steps allowed before stopping
+    character(10) :: parents_selection_method 
+                                  ! method for selecting designs to reproduce:
+                                  !   roulette, tournament, or random
+    double precision :: parent_fraction
+                                  ! fraction of population selected to 
+                                  !   reproduce
+    double precision :: roulette_selection_pressure
+                                  ! factor to increase likelihood of best
+                                  !   designs being selected by roulette
+    double precision :: tournament_fraction
+                                  ! fraction of population considered in
+                                  !   tournament selection of each parent
+    double precision :: crossover_range_factor
+                                  ! fraction by which parent characteristics
+                                  !   can be extrapolated during crossover
+    double precision :: mutant_probability
+                                  ! probability of mutation occurring in an
+                                  !   offspring
+    double precision :: chromosome_mutation_rate
+                                  ! probability of mutation in a given
+                                  !   chromosome for mutants
+    double precision :: mutation_range_factor
+                                  ! magnitude of change in a chromosome that
+                                  !   can occur during mutation, as fraction of
+                                  !   xmax - xmin
+    logical :: feasible_init      ! Whether to enforce initially feasible
+                                  !   designs
+    double precision :: feasible_limit
+                                  ! Max objective function value below which
+                                  !   initial designs are considered feasible
+    integer :: feasible_init_attempts
+                                  ! Number of attempts to try to get a feasible
+                                  !   initial design
+    logical :: write_designs      ! Whether to write best design each time it
+                                  !   changes
+    logical :: relative_fmin_report
+                                  ! If .true., reports improvement over seed
+                                  !   design. Otherwise, reports fmin itself.
+  end type ga_options_type
+
+! Options type for direct searches
+
+  type ds_options_type
+
+    double precision :: tol       ! tolerance in simplex radius before
+                                  !   triggering a stop condition
+    integer :: maxit              ! Max steps allowed before stopping
+    logical :: write_designs      ! Whether to write best design each time it
+                                  !   changes
+    logical :: relative_fmin_report
+                                  ! If .true., reports improvement over seed
+                                  !   design. Otherwise, reports fmin itself.
+  end type ds_options_type
+
   contains
 
 !=============================================================================80

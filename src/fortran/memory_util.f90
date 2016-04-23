@@ -31,8 +31,8 @@ module memory_util
 subroutine allocate_airfoil_data()
 
   use xfoil_driver,       only : xfoil_init
-  use vardef,             only : nparams_top, nparams_bot, shape_functions,    &
-                                 xseedt, xseedb, curr_foil
+  use vardef,             only : nfunctions_top, nfunctions_bot,               &
+                                 shape_functions, xseedt, xseedb, curr_foil
   use parametrization,    only : create_shape_functions
   use airfoil_operations, only : allocate_airfoil
 
@@ -41,11 +41,11 @@ subroutine allocate_airfoil_data()
 ! Allocate shape function setup arrays
 
   if (trim(shape_functions) == 'naca') then
-    allocate(modest(nparams_top))
-    allocate(modesb(nparams_bot))
+    allocate(modest(nfunctions_top))
+    allocate(modesb(nfunctions_bot))
   else
-    allocate(modest(nparams_top*3))
-    allocate(modesb(nparams_bot*3))
+    allocate(modest(nfunctions_top*3))
+    allocate(modesb(nfunctions_bot*3))
   end if
   modest(:) = 0.d0
   modesb(:) = 0.d0

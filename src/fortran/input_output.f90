@@ -28,33 +28,19 @@ module input_output
 ! Subroutine to read inputs from namelist file
 !
 !=============================================================================80
-subroutine read_inputs(input_file, search_type, global_search, local_search,   &
-                       seed_airfoil, airfoil_file, naca_digits, nfunctions_top,&
-                       nfunctions_bot, restart, restart_write_freq,            &
-                       constrained_dvs, pso_options, ga_options, ds_options,   &
-                       matchfoil_file)
+subroutine read_inputs(input_file, errval, errmsg)
 
   use vardef
-  use particle_swarm,     only : pso_options_type
-  use genetic_algorithm,  only : ga_options_type
-  use simplex_search,     only : ds_options_type
   use airfoil_operations, only : my_stop
-  use airfoil_evaluation, only : xfoil_options, xfoil_geom_options
  
   character(*), intent(in) :: input_file
-  character(80), intent(out) :: search_type, global_search, local_search,      &
-                                seed_airfoil, airfoil_file, matchfoil_file
-  character(4), intent(out) :: naca_digits
-  integer, intent(out) :: nfunctions_top, nfunctions_bot
-  integer, dimension(:), allocatable, intent(inout) :: constrained_dvs
-  type(pso_options_type), intent(out) :: pso_options
-  type(ga_options_type), intent(out) :: ga_options
-  type(ds_options_type), intent(out) :: ds_options
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
 
   logical :: viscous_mode, silent_mode, fix_unconverged, feasible_init,        &
-             reinitialize, restart, write_designs
-  integer :: restart_write_freq, pso_pop, pso_maxit, simplex_maxit, bl_maxit,  &
-             npan, feasible_init_attempts
+             reinitialize, write_designs
+  integer :: pso_pop, pso_maxit, simplex_maxit, bl_maxit, npan,                &
+             feasible_init_attempts
   integer :: ga_pop, ga_maxit
   double precision :: pso_tol, simplex_tol, ncrit, xtript, xtripb, vaccel
   double precision :: cvpar, cterat, ctrrat, xsref1, xsref2, xpref1, xpref2
@@ -94,15 +80,17 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
             xsref2, xpref1, xpref2
   namelist /matchfoil_options/ match_foils, matchfoil_file
 
+  errval = 0
+  errmsg = ''
+
 ! Open input file
 
   iunit = 12
   open(unit=iunit, file=input_file, status='old', iostat=ioerr)
   if (ioerr /= 0) then
-    write(*,*)
-    write(*,*) 'Error: could not find input file '//trim(input_file)//'.'
-    write(*,*)
-    stop
+    errval = 1
+    errmsg = 'could not find input file '//trim(input_file)//'.'
+    return
   end if
 
 ! Set defaults for main namelist options
@@ -131,11 +119,9 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
 
   if (trim(search_type) /= 'global_and_local' .and. trim(search_type) /=       &
       'global' .and. trim(search_type) /= 'local') then
-    write(*,*)
-    write(*,*) "Error: search_type must be 'global_and_local', 'global', "//   &
-               "or 'local'."
-    write(*,*)
-    stop
+    errval = 1
+    errmsg = "search_type must be 'global_and_local', 'global', or 'local.'"
+    return
   end if
 
 ! Set defaults for operating conditions and constraints
@@ -772,8 +758,7 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file)
 
   use vardef,             only : max_op_points, noppoint, op_mode, op_point,   &
                                  reynolds, mach, use_flap, x_flap, y_flap,     &
-                                 flap_degrees
-  use airfoil_evaluation, only : xfoil_options, xfoil_geom_options
+                                 flap_degrees, xfoil_options, xfoil_geom_options
   use airfoil_operations, only : my_stop
  
   character(*), intent(in) :: input_file
