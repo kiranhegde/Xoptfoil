@@ -1,11 +1,6 @@
 #include <iostream>
-
-/******************************************************************************/
-//
-// Declarations for Fortran interface functions
-//
-/******************************************************************************/
-extern"C" void read_namelist_inputs(int input_file_len, char *input_file);
+#include <string.h>
+#include "xoptfoil_interface.h"
 
 /******************************************************************************/
 //
@@ -14,9 +9,18 @@ extern"C" void read_namelist_inputs(int input_file_len, char *input_file);
 /******************************************************************************/
 int main ( int argc, char *argv[] )
 {
-  char input_file[] = "inputs.txt";
+  char input_file[80], errmsg[80];
+  int errval;
 
-  read_namelist_inputs(sizeof(input_file), input_file);
+  // Get input file name from command line input
+
+  if (argc < 2) { strcpy(input_file, "inputs.txt"); }
+  else { strcpy(input_file, argv[1]); }
+
+  // Read namelist inputs
+
+  read_namelist_inputs(input_file, sizeof(input_file), &errval, errmsg);
+  if (errval != 0) { std::cout << "Error: " << errmsg << std::endl; }
 
   return 0;
 }

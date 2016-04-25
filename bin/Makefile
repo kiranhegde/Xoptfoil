@@ -44,6 +44,7 @@ EXE=xoptfoil
 XOBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o airfoil_evaluation.o input_output.o xfoil_only.o
 XEXE=xfoil_only
 DIR=../src
+INCLUDE=$(DIR)/include
 
 # all: $(EXE) $(XEXE)
 all: $(EXE)
@@ -67,7 +68,6 @@ vardef.o: $(DIR)/fortran/vardef.f90
 
 xfoil_inc.o: $(DIR)/fortran/xfoil_inc.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xfoil_inc.f90
-
 xfoil_math.o: $(DIR)/fortran/xfoil_deps/xfoil_math.f
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(XFOIL_REAL8_FLAG) $(DIR)/fortran/xfoil_deps/xfoil_math.f
 
@@ -132,7 +132,7 @@ xoptfoil_interface.o: $(DIR)/fortran/xoptfoil_interface.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xoptfoil_interface.f90
 
 cli_main.o: $(DIR)/cpp/cli_main.cpp
-	$(CXX) -c $(CXXFLAGS) $(OMP_FLAG) $(DIR)/cpp/cli_main.cpp
+	$(CXX) -c $(CXXFLAGS) $(OMP_FLAG) -I$(INCLUDE) $(DIR)/cpp/cli_main.cpp
 
 xfoil_only.o: $(DIR)/fortran/xfoil_only.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xfoil_only.f90
