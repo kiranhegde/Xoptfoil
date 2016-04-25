@@ -7,11 +7,14 @@ FCFLAGS=-g -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -Wall
 #FCFLAGS=-g -O3 -static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -flto
 #FCFLAGS=-g -O3
 
+CXXFLAGS=$(FCFLAGS)
+
 #####################################################################
 
 ####### GNU Compiler Flags ##########################################
 
 FC=gfortran
+CPP=g++
 #OMP_FLAG=-fopenmp
 XFOIL_REAL8_FLAG=-fdefault-real-8
 
@@ -36,7 +39,7 @@ endif
 ####### Definitions, rules, targets #################################
 
 #OBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o airfoil_evaluation.o optimization_util.o particle_swarm.o genetic_algorithm.o simplex_search.o input_output.o input_sanity.o memory_util.o optimization_driver.o xoptfoil_interface.o dummy_main.o
-OBJ=math_deps.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o optimization_util.o vardef.o parametrization.o airfoil_operations.o input_output.o xoptfoil_interface.o dummy_main.o
+OBJ=math_deps.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o optimization_util.o vardef.o parametrization.o airfoil_operations.o input_output.o xoptfoil_interface.o cli_main.o
 EXE=xoptfoil
 XOBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o airfoil_evaluation.o input_output.o xfoil_only.o
 XEXE=xfoil_only
@@ -48,7 +51,7 @@ all: $(EXE)
 remake: clean all
 
 $(EXE): $(OBJ)
-	$(FC) $(FCFLAGS) $(OMP_FLAG) -o $(EXE) $(OBJ)
+	$(CXX) $(CXXFLAGS) $(OMP_FLAG) -o $(EXE) $(OBJ) -lgfortran
 
 $(XEXE): $(XOBJ)
 	$(FC) $(FCFLAGS) $(OMP_FLAG) -o $(XEXE) $(XOBJ)
@@ -128,8 +131,8 @@ main.o: $(DIR)/fortran/main.f90
 xoptfoil_interface.o: $(DIR)/fortran/xoptfoil_interface.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xoptfoil_interface.f90
 
-dummy_main.o: $(DIR)/fortran/dummy_main.f90
-	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/dummy_main.f90
+cli_main.o: $(DIR)/cpp/cli_main.cpp
+	$(CXX) -c $(CXXFLAGS) $(OMP_FLAG) $(DIR)/cpp/cli_main.cpp
 
 xfoil_only.o: $(DIR)/fortran/xfoil_only.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xfoil_only.f90
