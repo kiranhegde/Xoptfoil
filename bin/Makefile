@@ -7,7 +7,7 @@ FCFLAGS=-g -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -Wall
 #FCFLAGS=-g -O3 -static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -flto
 #FCFLAGS=-g -O3
 
-CXXFLAGS=$(FCFLAGS)
+CPPFLAGS=$(FCFLAGS)
 
 #####################################################################
 
@@ -52,7 +52,7 @@ all: $(EXE)
 remake: clean all
 
 $(EXE): $(OBJ)
-	$(CXX) $(CXXFLAGS) $(OMP_FLAG) -o $(EXE) $(OBJ) -lgfortran
+	$(CPP) $(CPPFLAGS) $(OMP_FLAG) -o $(EXE) $(OBJ) -lgfortran
 
 $(XEXE): $(XOBJ)
 	$(FC) $(FCFLAGS) $(OMP_FLAG) -o $(XEXE) $(XOBJ)
@@ -132,7 +132,7 @@ xoptfoil_interface.o: $(DIR)/fortran/xoptfoil_interface.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xoptfoil_interface.f90
 
 cli_main.o: $(DIR)/cpp/cli_main.cpp
-	$(CXX) -c $(CXXFLAGS) $(OMP_FLAG) -I$(INCLUDE) $(DIR)/cpp/cli_main.cpp
+	$(CPP) -c $(CPPFLAGS) $(OMP_FLAG) -I$(INCLUDE) $(DIR)/cpp/cli_main.cpp
 
 xfoil_only.o: $(DIR)/fortran/xfoil_only.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xfoil_only.f90

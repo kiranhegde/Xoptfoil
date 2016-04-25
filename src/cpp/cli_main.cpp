@@ -4,6 +4,20 @@
 
 /******************************************************************************/
 //
+// Prints error message (char array) to stdout
+//
+/******************************************************************************/
+void print_error ( char *array, int len )
+{
+  int i;
+
+  std::cout << "Error: ";
+  for ( i = 0; i < len-1; i++ ) { std::cout << array[i]; }
+  std::cout << array[len-1] << std::endl;
+}
+
+/******************************************************************************/
+//
 // Main program
 //
 /******************************************************************************/
@@ -28,7 +42,7 @@ int main ( int argc, char *argv[] )
   // Read namelist inputs
 
   read_namelist_inputs(input_file, &errval, errmsg);
-  if (errval != 0) { std::cout << "Error: " << errmsg << std::endl; }
+  if (errval != 0) { print_error(errmsg, 80); }
 
   return 0;
 }
