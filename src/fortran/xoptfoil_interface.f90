@@ -9,19 +9,17 @@ module xoptfoil_interface
 ! Reads inputs from fortran namelist file
 !
 !=============================================================================80
-subroutine read_namelist_inputs(cinput_file, len_input, errval, cerrmsg)       &
-           bind(c)
+subroutine read_namelist_inputs(cinput_file, cerrval, cerrmsg) bind(c)
 
   use iso_c_binding
   use vardef
   use input_output, only : read_inputs
 
-  character(kind=C_CHAR, len=1), intent(in) :: cinput_file(*)
-  integer(C_INT), intent(in), value :: len_input
-  integer(C_INT), intent(inout) :: errval
-  character(kind=C_CHAR, len=1), intent(inout) :: cerrmsg(*)
+  character(kind=C_CHAR, len=1), dimension(80), intent(in) :: cinput_file
+  integer(C_INT), intent(out) :: cerrval
+  character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
 
-  integer :: i
+  integer :: errval, i
   character(80) :: input_file, errmsg
 
   errval = 0
@@ -29,7 +27,7 @@ subroutine read_namelist_inputs(cinput_file, len_input, errval, cerrmsg)       &
 
   ! Convert C char array to Fortran char array
   
-  do i = 1, len_input
+  do i = 1, 80
     input_file(i:i) = cinput_file(i)
   end do
 
@@ -39,6 +37,7 @@ subroutine read_namelist_inputs(cinput_file, len_input, errval, cerrmsg)       &
 
   ! Convert to C outputs
 
+  cerrval = errval
   do i = 1, 80
     cerrmsg(i) = errmsg(i:i)
   end do

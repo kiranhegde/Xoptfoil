@@ -10,7 +10,15 @@
 int main ( int argc, char *argv[] )
 {
   char input_file[80], errmsg[80];
-  int errval;
+  int errval, i;
+
+  // Initialize char arrays
+
+  for ( i = 0; i < 80; i++ ) 
+  { 
+    input_file[i] = ' ';
+    errmsg[i] = ' ';
+  }
 
   // Get input file name from command line input
 
@@ -19,7 +27,7 @@ int main ( int argc, char *argv[] )
 
   // Read namelist inputs
 
-  read_namelist_inputs(input_file, sizeof(input_file), &errval, errmsg);
+  read_namelist_inputs(input_file, &errval, errmsg);
   if (errval != 0) { std::cout << "Error: " << errmsg << std::endl; }
 
   return 0;
