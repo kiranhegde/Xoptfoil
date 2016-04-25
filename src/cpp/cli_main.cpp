@@ -42,7 +42,12 @@ int main ( int argc, char *argv[] )
   // Read namelist inputs
 
   read_namelist_inputs(input_file, &errval, errmsg);
-  if (errval != 0) { print_error(errmsg, 80); }
+  if (errval != 0) { print_error(errmsg, 80); return 1; }
+
+  // Initialize
+
+  initialize(&errval, errmsg);
+  if (errval != 0) { print_error(errmsg, 80); return 1; }
 
   return 0;
 }
