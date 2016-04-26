@@ -847,27 +847,4 @@ function isnum(s)
 
 end function isnum
 
-!=============================================================================80
-!
-! Stops and prints an error message, or just warns
-!
-!=============================================================================80
-subroutine my_stop(message, stoptype)
-
-  character(*), intent(in) :: message
-  character(4), intent(in), optional :: stoptype
-
-  if ((.not. present(stoptype)) .or. (stoptype == 'stop')) then
-    write(*,*)
-    write(*,'(A)') 'Error: '//trim(message)
-    write(*,*)
-    stop
-  else
-    write(*,*)
-    write(*,'(A)') 'Warning: '//trim(message)
-    write(*,*)
-  end if
-
-end subroutine my_stop
-
 end module airfoil_operations

@@ -28,16 +28,16 @@ module input_sanity
 ! minimum allowable pitching moment.
 !
 !=============================================================================80
-subroutine check_seed(xoffset, zoffset, foilscale)
+subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
 
-  use vardef
+  use settings
   use math_deps,          only : interp_vector, curvature
   use xfoil_driver,       only : run_xfoil
   use xfoil_inc,          only : AMAX
-  use airfoil_operations, only : my_stop
-  use airfoil_evaluation, only : xfoil_options, xfoil_geom_options
 
   double precision, intent(in) :: xoffset, zoffset, foilscale
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
 
   double precision, dimension(:), allocatable :: x_interp, thickness
   double precision, dimension(:), allocatable :: zt_interp, zb_interp
@@ -49,6 +49,9 @@ subroutine check_seed(xoffset, zoffset, foilscale)
   integer :: i, nptt, nptb, nreversals, nptint, pointst, pointsb
   character(30) :: text, text2
   character(4) :: stoptype
+
+  errval = 0
+  errmsg = ''
 
   stoptype = seed_violation_handling
   penaltyval = 0.d0
@@ -110,13 +113,25 @@ subroutine check_seed(xoffset, zoffset, foilscale)
     write(text,'(F8.4)') maxpanang
     text = adjustl(text)
     write(*,*) "LE panel angle: "//trim(text)//" degrees"
-    call my_stop("Seed airfoil's leading edge is too blunt.", stoptype)
+    if (stoptype == 'stop') then
+      errval = 1
+      errmsg = "seed airfoil's leading edge is too blunt."
+      return
+    else
+      call print_warning("seed airfoil's leading edge is too blunt.")
+    end if
   end if
   if (abs(panang1 - panang2) > 20.d0) then
     write(text,'(F8.4)') abs(panang1 - panang2)
     text = adjustl(text)
     write(*,*) "LE panel angle: "//trim(text)//" degrees"
-    call my_stop("Seed airfoil's leading edge is too sharp.", stoptype)
+    if (stoptype == 'stop') then
+      errval = 1
+      errmsg = "seed airfoil's leading edge is too sharp."
+      return
+    else
+      call print_warning("seed airfoil's leading edge is too sharp.")
+    end if
   end if
 
 ! Interpolate either bottom surface to top surface x locations or vice versa
@@ -128,7 +143,8 @@ subroutine check_seed(xoffset, zoffset, foilscale)
     allocate(zb_interp(nptt))
     allocate(thickness(nptt))
     nptint = nptt
-    call interp_vector(xseedb, zseedb, xseedt, zb_interp)
+    call interp_vector(xseedb, zseedb, xseedt, zb_interp, errval, errmsg)
+    if (errval /= 0) return
     x_interp = xseedt
     zt_interp = zseedt
   else
@@ -137,7 +153,8 @@ subroutine check_seed(xoffset, zoffset, foilscale)
     allocate(zb_interp(nptb))
     allocate(thickness(nptb))
     nptint = nptb
-    call interp_vector(xseedt, zseedt, xseedb, zt_interp)
+    call interp_vector(xseedt, zseedt, xseedb, zt_interp, errval, errmsg)
+    if (errval /= 0) return
     x_interp = xseedb
     zb_interp = zseedb
   end if
@@ -180,9 +197,17 @@ subroutine check_seed(xoffset, zoffset, foilscale)
 
 ! Too thin on back half
 
-  if (penaltyval > 0.d0)                                                       &
-     call my_stop("Seed airfoil is thinner than min_te_angle near the "//      &
-                  "trailing edge.", stoptype)
+  if (penaltyval > 0.d0) then
+    if (stoptype == 'stop') then
+      errval = 1
+      errmsg = "seed airfoil is thinner than min_te_angle near the "//&
+               "trailing edge."
+      return
+    else
+      call print_warning("seed airfoil is thinner than min_te_angle near "//&
+                         "the trailing edge.")
+    end if
+  end if
   penaltyval = 0.d0
 
 ! Max thickness too low
@@ -191,7 +216,13 @@ subroutine check_seed(xoffset, zoffset, foilscale)
     write(text,'(F8.4)') maxthick
     text = adjustl(text)
     write(*,*) "Thickness: "//trim(text)
-    call my_stop("Seed airfoil violates min_thickness constraint.", stoptype)
+    if (stoptype == 'stop') then
+      errval = 1
+      errmsg = "seed airfoil violates min_thickness constraint."
+      return
+    else
+      call print_warning("seed airfoil violates min_thickness constraint.")
+    end if
   end if
 
 ! Max thickness too high
@@ -200,7 +231,13 @@ subroutine check_seed(xoffset, zoffset, foilscale)
     write(text,'(F8.4)') maxthick
     text = adjustl(text)
     write(*,*) "Thickness: "//trim(text)
-    call my_stop("Seed airfoil violates max_thickness constraint.", stoptype)
+    if (stoptype == 'stop') then
+      errval = 1
+      errmsg = "seed airfoil violates max_thickness constraint."
+      return
+    else
+      call print_warning("seed airfoil violates max_thickness constraint.")
+    end if
   end if
 
 ! Check for curvature reversals
@@ -239,10 +276,15 @@ subroutine check_seed(xoffset, zoffset, foilscale)
 
     end do
 
-    if (nreversals > max_curv_reverse)                                         &
-      call my_stop("Seed airfoil violates max_curv_reverse constraint.",       &
-                   stoptype)
-
+    if (nreversals > max_curv_reverse) then
+      if (stoptype == 'stop') then
+        errval = 1                                         
+        errmsg = "seed airfoil violates max_curv_reverse constraint."
+        return
+      else
+        call print_warning("seed airfoil violates max_curv_reverse constraint.")
+      end if
+    end if
   end if
 
 ! Check for bad combinations of operating conditions and optimization types
@@ -253,16 +295,16 @@ subroutine check_seed(xoffset, zoffset, foilscale)
 
     if ((op_point(i) == 0.d0) .and. (op_mode(i) == 'spec-cl') .and.            &
         (trim(optimization_type(i)) /= 'min-drag')) then
-      write(*,*) "Error: operating points "//trim(text)//" is at Cl = 0. "//   &
-                 "Need to use 'min-drag' optimization type in this case."
-      write(*,*) 
-      stop
+      errval = 1
+      errmsg = "must use 'min-drag' optimization for Cl = 0 (op. point "//&
+               trim(text)//")."
+      return
     elseif ((op_mode(i) == 'spec-cl') .and.                                    &
             (trim(optimization_type(i)) == 'max-lift')) then
-      write(*,*) "Error: Cl is specified for operating point "//trim(text)//   &
-                 ". Cannot use 'max-lift' optimization type in this case."
-      write(*,*) 
-      stop
+      errval = 1
+      errmsg = "cannot use 'max-lift' optimization for specified Cl (op. "//&
+               "point "//trim(text)//")."
+      return
     end if
 
   end do
@@ -280,16 +322,21 @@ subroutine check_seed(xoffset, zoffset, foilscale)
     if (viscrms(i) > 1.0D-04) then
       write(text,*) i
       text = adjustl(text)
-      call my_stop("Xfoil calculations did not converge for operating point "//&
-                   trim(text)//".", stoptype)
+      if (stoptype == 'stop') then
+        errval = 1
+        errmsg = "Xfoil did not converge for operating point "//&
+                 trim(text)//"."
+        return
+      else
+        call print_warning("Xfoil did not converge for operating point "//&
+                           trim(text)//".")
+      end if
     end if
   end do
 
 ! Set moment constraint or check for violation of specified constraint
 
   do i = 1, noppoint
-    write(text,*) i
-    text = adjustl(text)
     if (trim(moment_constraint_type(i)) == 'use_seed') then
       min_moment(i) = moment(i)
     elseif (trim(moment_constraint_type(i)) == 'specify') then
@@ -297,8 +344,17 @@ subroutine check_seed(xoffset, zoffset, foilscale)
         write(text,'(F8.4)') moment(i)
         text = adjustl(text)
         write(*,*) "Moment: "//trim(text)
-        call my_stop("Seed airfoil violates min_moment constraint for "//      &
-                     "operating point "//trim(text)//".", stoptype)
+        write(text,*) i
+        text = adjustl(text)
+        if (stoptype == 'stop') then
+          errval = 1
+          errmsg = "seed airfoil violates min_moment constraint for "//&
+                   "op. point "//trim(text)//"."
+          return
+        else
+          call print_warning("seed airfoil violates min_moment constraint "//&
+                             "for op. point "//trim(text)//".")
+        end if
       end if
     end if
   end do
@@ -312,10 +368,10 @@ subroutine check_seed(xoffset, zoffset, foilscale)
       else
         write(text,*) i
         text = adjustl(text)
-        write(*,*) "Error: operating point "//trim(text)//" has Cl <= 0. "//   &
-                   "Cannot use min-sink optimization in this case."
-        write(*,*)
-        stop
+        errval = 1
+        errmsg = "cannot use min-sink optimization for Cl <= 0 (op. point "//&
+                 trim(text)//")."
+        return
       end if
     elseif (trim(optimization_type(i)) == 'max-glide') then
       checkval = drag(i)/lift(i)
@@ -324,10 +380,10 @@ subroutine check_seed(xoffset, zoffset, foilscale)
     elseif (trim(optimization_type(i)) == 'max-lift') then
       checkval = 1.d0/lift(i)
     else
-      write(*,*)
-      write(*,*) "Error: requested optimization_type for operating point "//   &
-                 trim(text)//" not recognized."
-      stop
+      errval = 1
+      errmsg = "requested optimization_type for op. point "//trim(text)//&
+               " not recognized."  
+      return
     end if
     scale_factor(i) = 1.d0/checkval
   end do
@@ -339,10 +395,32 @@ subroutine check_seed(xoffset, zoffset, foilscale)
     write(text,'(F8.4)') maxpanang
     text = adjustl(text)
     write(*,*) "Max panel angle: "//trim(text)
-    call my_stop("Seed airfoil panel angles are too large. Try adjusting "//   &
-                 "xfoil_paneling_options.", stoptype)
+    if (stoptype == 'stop') then
+      errval = 1
+      errmsg = "seed airfoil panel angles are too large. Adjust "//&
+               "xfoil_paneling_options."
+      return
+    else
+      call print_warning("seed airfoil panel angles are too large. Adjust "//&
+                         "xfoil_paneling_options.")
+    end if
   end if
 
 end subroutine check_seed
+
+!=============================================================================80
+!
+! Prints warning
+!
+!=============================================================================80
+subroutine print_warning(message)
+
+  character(*), intent(in) :: message
+  
+  write(*,*)
+  write(*,'(A)') 'Warning: '//trim(message)
+  write(*,*)
+
+end subroutine print_warning
 
 end module input_sanity

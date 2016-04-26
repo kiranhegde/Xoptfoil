@@ -77,6 +77,7 @@ subroutine initialize(cerrval, cerrmsg) bind(c)
                                  split_airfoil, deallocate_airfoil
   use xfoil_driver,       only : airfoil_type
   use memory_util,        only : allocate_airfoil_data
+  use input_sanity,       only : check_seed
 
   integer(kind=C_INT), intent(out) :: cerrval
   character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
@@ -117,6 +118,17 @@ subroutine initialize(cerrval, cerrmsg) bind(c)
 ! Allocate memory for airfoil analysis
 
   call allocate_airfoil_data()
+
+! Check that seed airfoil passes constraints
+
+  call check_seed(xoffset, zoffset, foilscale, errval, errmsg)
+
+! Return if there was an error
+
+  if (errval /= 0) then
+    call convert_to_c(errval, errmsg, 80, cerrval, cerrmsg)
+    return
+  end if
 
 ! Convert to C outputs
 

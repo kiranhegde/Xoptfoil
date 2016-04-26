@@ -11,7 +11,7 @@ void print_error ( char *array, int len )
 {
   int i;
 
-  std::cout << "Error: ";
+  std::cout << " Error: ";
   for ( i = 0; i < len-1; i++ ) { std::cout << array[i]; }
   std::cout << array[len-1] << std::endl;
 }

@@ -129,13 +129,18 @@ end function norm_2
 ! coordinates xnew
 !
 !=============================================================================80
-subroutine interp_vector(x, y, xnew, ynew)
+subroutine interp_vector(x, y, xnew, ynew, errval, errmsg)
 
   double precision, dimension(:), intent(in) :: x, y, xnew
   double precision, dimension(:), intent(inout) :: ynew
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
 
   logical :: isbtwn
   integer :: i, pt1, npt, nptnew
+
+  errval = 0
+  errmsg = ''
 
   npt = size(x,1)
   nptnew = size(xnew,1)
@@ -152,9 +157,10 @@ subroutine interp_vector(x, y, xnew, ynew)
         pt1 = pt1 + 1
         if (pt1 == npt) then
           write(*,*)
-          write(*,*) 'Warning: could not find interpolants.'
           write(*,*) 'x: ', xnew(i), 'xmax: ', x(npt)
-          stop
+          errval = 1
+          errmsg = "interp_vector could not find interpolants."
+          return
         end if
       end if
     end do

@@ -103,6 +103,7 @@ program main
 
   call allocate_airfoil_data()
 
+!FIXME: putin optimization driver where it makes more sense
 ! Set up for matching airfoils
 
   if (match_foils) then
