@@ -72,7 +72,7 @@ subroutine initialize(cerrval, cerrmsg) bind(c)
 
   use iso_c_binding,      only : C_INT, C_CHAR
   use settings,           only : seed_airfoil, airfoil_file, naca_digits,      &
-                                 xseedt, zseedt, xseedb, zseedb
+                                 symmetrical, xseedt, zseedt, xseedb, zseedb
   use airfoil_operations, only : get_seed_airfoil, get_split_points,           &
                                  split_airfoil, deallocate_airfoil
   use xfoil_driver,       only : airfoil_type
@@ -85,7 +85,6 @@ subroutine initialize(cerrval, cerrmsg) bind(c)
   integer :: errval, pointst, pointsb
   character(80) :: errmsg
   double precision :: xoffset, zoffset, foilscale
-  logical :: symmetrical
 
   errval = 0
   errmsg = ''
