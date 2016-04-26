@@ -121,7 +121,7 @@ end subroutine create_shape_functions
 !=============================================================================80
 subroutine create_shape(x, modes, shapetype, shape_function)
 
-  use vardef, only : initial_perturb, min_bump_width
+  use settings, only : initial_perturb, min_bump_width
 
   double precision, dimension(:), intent(in) :: x, modes
   character(*), intent(in) :: shapetype

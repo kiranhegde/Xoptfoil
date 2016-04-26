@@ -35,7 +35,7 @@ module airfoil_operations
 subroutine get_seed_airfoil(seed_airfoil, airfoil_file, naca_digits, foil,     &
                             xoffset, zoffset, foilscale, errval, errmsg)
 
-  use vardef,       only : airfoil_type
+  use settings,     only : airfoil_type
   use xfoil_driver, only : smooth_paneling
 
   character(*), intent(in) :: seed_airfoil, airfoil_file
@@ -97,7 +97,7 @@ end subroutine get_seed_airfoil
 !=============================================================================80
 subroutine load_airfoil(filename, foil, errval, errmsg)
 
-  use vardef, only : airfoil_type
+  use settings, only : airfoil_type
 
   character(*), intent(in) :: filename
   type(airfoil_type), intent(out) :: foil
@@ -138,7 +138,7 @@ end subroutine load_airfoil
 subroutine naca_four_digit(naca_digits, pointsmcl, foil, errval, errmsg)
 
   use parametrization,  only : normal_spacing
-  use vardef,           only : airfoil_type
+  use settings,         only : airfoil_type
 
   character(4), intent(in) :: naca_digits
   integer, intent(in) :: pointsmcl
@@ -366,7 +366,7 @@ end subroutine airfoil_read
 !=============================================================================80
 subroutine cc_ordering(foil)
 
-  use vardef, only : airfoil_type
+  use settings, only : airfoil_type
 
   type(airfoil_type), intent(inout) :: foil
 
@@ -616,7 +616,7 @@ end function quintic
 !=============================================================================80
 subroutine transform_airfoil(foil, xoffset, zoffset, foilscale)
 
-  use vardef, only : airfoil_type
+  use settings, only : airfoil_type
 
   type(airfoil_type), intent(inout) :: foil
   double precision, intent(out) :: xoffset, zoffset, foilscale
@@ -654,7 +654,7 @@ end subroutine transform_airfoil
 !=============================================================================80
 subroutine get_split_points(foil, pointst, pointsb, symmetrical)
 
-  use vardef, only : airfoil_type
+  use settings, only : airfoil_type
 
   type(airfoil_type), intent(in) :: foil
   integer, intent(out) :: pointst, pointsb
@@ -684,7 +684,7 @@ end subroutine get_split_points
 !=============================================================================80
 subroutine split_airfoil(foil, xseedt, xseedb, zseedt, zseedb, symmetrical)
 
-  use vardef, only : airfoil_type
+  use settings, only : airfoil_type
 
   type(airfoil_type), intent(in) :: foil
   double precision, dimension(:), intent(inout) :: xseedt, xseedb, zseedt,     &
@@ -741,7 +741,7 @@ end subroutine split_airfoil
 !=============================================================================80
 subroutine airfoil_write(filename, title, foil)
 
-  use vardef, only : airfoil_type
+  use settings, only : airfoil_type
 
   character(*), intent(in) :: filename, title
   type(airfoil_type), intent(in) :: foil
@@ -782,7 +782,7 @@ end subroutine airfoil_write
 !=============================================================================80
 subroutine allocate_airfoil(foil)
 
-  use vardef, only : airfoil_type
+  use settings, only : airfoil_type
 
   type(airfoil_type), intent(inout) :: foil
 
@@ -801,7 +801,7 @@ end subroutine allocate_airfoil
 !=============================================================================80
 subroutine deallocate_airfoil(foil)
 
-  use vardef, only : airfoil_type
+  use settings, only : airfoil_type
 
   type(airfoil_type), intent(inout) :: foil
 

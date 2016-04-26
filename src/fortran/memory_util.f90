@@ -31,7 +31,7 @@ module memory_util
 subroutine allocate_airfoil_data()
 
   use xfoil_driver,       only : xfoil_init
-  use vardef,             only : nfunctions_top, nfunctions_bot,               &
+  use settings,           only : nfunctions_top, nfunctions_bot,               &
                                  shape_functions, xseedt, xseedb, curr_foil
   use parametrization,    only : create_shape_functions
   use airfoil_operations, only : allocate_airfoil
@@ -86,7 +86,7 @@ end subroutine allocate_airfoil_data
 subroutine deallocate_airfoil_data()
 
   use parametrization,    only : deallocate_shape_functions
-  use vardef,             only : curr_foil
+  use settings,           only : curr_foil
   use airfoil_operations, only : deallocate_airfoil
   use xfoil_driver,       only : xfoil_cleanup
 

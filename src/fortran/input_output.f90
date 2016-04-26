@@ -30,7 +30,7 @@ module input_output
 !=============================================================================80
 subroutine read_inputs(input_file, errval, errmsg)
 
-  use vardef
+  use settings
  
   character(*), intent(in) :: input_file
   integer, intent(out) :: errval
@@ -983,9 +983,9 @@ end subroutine read_inputs
 !=============================================================================80
 subroutine read_inputs_xfoil_only(input_file, airfoil_file, errval, errmsg)
 
-  use vardef,             only : max_op_points, noppoint, op_mode, op_point,   &
-                                 reynolds, mach, use_flap, x_flap, y_flap,     &
-                                 flap_degrees, xfoil_options, xfoil_geom_options
+  use settings, only : max_op_points, noppoint, op_mode, op_point, reynolds,   &
+                       mach, use_flap, x_flap, y_flap, flap_degrees,           &
+                       xfoil_options, xfoil_geom_options
  
   character(*), intent(in) :: input_file
   character(80), intent(out) :: airfoil_file

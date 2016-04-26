@@ -35,7 +35,6 @@ end subroutine convert_to_c
 subroutine read_namelist_inputs(cinput_file, cerrval, cerrmsg) bind(c)
 
   use iso_c_binding, only : C_INT, C_CHAR
-  use vardef
   use input_output,  only : read_inputs
 
   character(kind=C_CHAR, len=1), dimension(80), intent(in) :: cinput_file
@@ -72,7 +71,7 @@ end subroutine read_namelist_inputs
 subroutine initialize(cerrval, cerrmsg) bind(c)
 
   use iso_c_binding,      only : C_INT, C_CHAR
-  use vardef,             only : seed_airfoil, airfoil_file, naca_digits,      &
+  use settings,           only : seed_airfoil, airfoil_file, naca_digits,      &
                                  xseedt, zseedt, xseedb, zseedb
   use airfoil_operations, only : get_seed_airfoil, get_split_points,           &
                                  split_airfoil, deallocate_airfoil
@@ -133,7 +132,7 @@ end subroutine initialize
 !=============================================================================80
 subroutine cleanup() bind(c)
 
-  use vardef,      only : xseedt, xseedb, zseedt, zseedb
+  use settings,    only : xseedt, xseedb, zseedt, zseedb
   use memory_util, only : deallocate_airfoil_data
 
   call deallocate_airfoil_data()

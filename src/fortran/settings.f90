@@ -15,7 +15,7 @@
 
 !  Copyright (C) 2014 -- 2016 Daniel Prosser
 
-module vardef
+module settings
 
   use optimization_util, only : pso_options_type, ga_options_type,             &
                                 ds_options_type
@@ -24,7 +24,7 @@ module vardef
 
   implicit none
 
-! Optimization options
+! Optimization settings
 
   character(80) :: search_type, global_search, local_search, seed_airfoil,     &
                    airfoil_file
@@ -34,7 +34,7 @@ module vardef
   double precision :: initial_perturb, min_bump_width
   logical :: restart
 
-! Operating conditions
+! Operating settings
 
   integer, parameter :: max_op_points = 30
   integer :: noppoint
@@ -56,7 +56,7 @@ module vardef
   logical :: check_curvature, symmetrical
   integer :: max_curv_reverse
 
-! Structures for other options
+! Structures for other settings
 
   type(pso_options_type) :: pso_options
   type(ga_options_type) :: ga_options
@@ -69,6 +69,7 @@ module vardef
   logical match_foils
   character(80) :: matchfoil_file
 
+!FIXME: these should be moved somewhere else
 ! Other global variables
 
   double precision, dimension(max_op_points) :: scale_factor
@@ -88,4 +89,4 @@ module vardef
 
 !$omp threadprivate(curr_foil)
 
-end module vardef
+end module settings

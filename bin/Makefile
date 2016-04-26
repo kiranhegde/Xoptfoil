@@ -39,7 +39,7 @@ endif
 ####### Definitions, rules, targets #################################
 
 #OBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o airfoil_evaluation.o optimization_util.o particle_swarm.o genetic_algorithm.o simplex_search.o input_output.o input_sanity.o memory_util.o optimization_driver.o xoptfoil_interface.o dummy_main.o
-OBJ=math_deps.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o optimization_util.o vardef.o parametrization.o airfoil_operations.o input_output.o memory_util.o xoptfoil_interface.o cli_main.o
+OBJ=math_deps.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o optimization_util.o settings.o parametrization.o airfoil_operations.o input_output.o memory_util.o xoptfoil_interface.o cli_main.o
 EXE=xoptfoil
 XOBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o airfoil_evaluation.o input_output.o xfoil_only.o
 XEXE=xfoil_only
@@ -63,8 +63,8 @@ clean:
 math_deps.o: $(DIR)/fortran/math_deps.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/math_deps.f90
 
-vardef.o: $(DIR)/fortran/vardef.f90
-	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/vardef.f90
+settings.o: $(DIR)/fortran/settings.f90
+	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/settings.f90
 
 xfoil_inc.o: $(DIR)/fortran/xfoil_inc.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xfoil_inc.f90
