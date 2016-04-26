@@ -26,6 +26,13 @@ int main ( int argc, char *argv[] )
   char input_file[80], errmsg[80];
   int errval, i;
 
+  // Print program info
+
+  std::cout << std::endl;
+  std::cout << " This is Xoptfoil: airfoil optimization with Xfoil" 
+            << std::endl;
+  std::cout << " Version 2.0" << std::endl;
+
   // Initialize char arrays
 
   for ( i = 0; i < 80; i++ ) 
@@ -48,6 +55,10 @@ int main ( int argc, char *argv[] )
 
   initialize(&errval, errmsg);
   if (errval != 0) { print_error(errmsg, 80); return 1; }
+
+  // Deallocate memory
+
+  cleanup();
 
   return 0;
 }

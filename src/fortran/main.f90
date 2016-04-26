@@ -83,6 +83,7 @@ program main
 
   call deallocate_airfoil(buffer_foil)
 
+!FIXME: put in optimization driver where it makes more sense
 ! Allocate optimal solution
 
   if (trim(shape_functions) == 'naca') then
@@ -139,6 +140,7 @@ program main
   deallocate(xseedb)
   deallocate(zseedt)
   deallocate(zseedb)
+!FIXME: put in optimization driver
   deallocate(optdesign)
   deallocate(constrained_dvs)
 

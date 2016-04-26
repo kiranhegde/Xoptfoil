@@ -72,17 +72,21 @@ end subroutine read_namelist_inputs
 subroutine initialize(cerrval, cerrmsg) bind(c)
 
   use iso_c_binding,      only : C_INT, C_CHAR
-  use vardef,             only : seed_airfoil, airfoil_file, naca_digits
-  use airfoil_operations, only : get_seed_airfoil
+  use vardef,             only : seed_airfoil, airfoil_file, naca_digits,      &
+                                 xseedt, zseedt, xseedb, zseedb
+  use airfoil_operations, only : get_seed_airfoil, get_split_points,           &
+                                 split_airfoil, deallocate_airfoil
   use xfoil_driver,       only : airfoil_type
+  use memory_util,        only : allocate_airfoil_data
 
   integer(kind=C_INT), intent(out) :: cerrval
   character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
 
   type(airfoil_type) :: buffer_foil
-  integer :: errval
+  integer :: errval, pointst, pointsb
   character(80) :: errmsg
   double precision :: xoffset, zoffset, foilscale
+  logical :: symmetrical
 
   errval = 0
   errmsg = ''
@@ -99,10 +103,45 @@ subroutine initialize(cerrval, cerrmsg) bind(c)
     return
   end if
 
+! Split up seed airfoil into upper and lower surfaces
+
+  call get_split_points(buffer_foil, pointst, pointsb, symmetrical)
+  allocate(xseedt(pointst))
+  allocate(zseedt(pointst))
+  allocate(xseedb(pointsb))
+  allocate(zseedb(pointsb))
+  call split_airfoil(buffer_foil, xseedt, xseedb, zseedt, zseedb, symmetrical)
+
+! Deallocate buffer airfoil (no longer needed)
+
+  call deallocate_airfoil(buffer_foil)
+
+! Allocate memory for airfoil analysis
+
+  call allocate_airfoil_data()
+
 ! Convert to C outputs
 
   call convert_to_c(errval, errmsg, 80, cerrval, cerrmsg)
  
 end subroutine initialize
+
+!=============================================================================80
+!
+! Deallocates memory
+!
+!=============================================================================80
+subroutine cleanup() bind(c)
+
+  use vardef,      only : xseedt, xseedb, zseedt, zseedb
+  use memory_util, only : deallocate_airfoil_data
+
+  call deallocate_airfoil_data()
+  deallocate(xseedt) 
+  deallocate(zseedt) 
+  deallocate(xseedb) 
+  deallocate(zseedb) 
+
+end subroutine cleanup
 
 end module xoptfoil_interface
