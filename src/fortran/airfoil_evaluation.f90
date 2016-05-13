@@ -19,18 +19,60 @@ module airfoil_evaluation
 
 ! Sets up and evaluates the objective function for an airfoil design
 
-  use vardef
+  use xfoil_driver, only : airfoil_type, xfoil_geom_options_type,              &
+                           xfoil_options_type
 
   implicit none
 
-  public
+  public  
   private :: aero_objective_function, matchfoil_objective_function
+
+! Required optimization settings
+
+  character(11) :: shape_functions
+  double precision :: initial_perturb
+
+! Operating points
+
+  integer, parameter :: max_op_points = 30
+  integer :: noppoint
+  character(7), dimension(max_op_points) :: op_mode
+  character(9), dimension(max_op_points) :: optimization_type
+  double precision, dimension(max_op_points) :: op_point, reynolds, mach,      &
+                                                flap_degrees, weighting 
+  logical :: use_flap
+  double precision :: x_flap, y_flap
+
+! Constraints
+
+  logical :: check_curvature, symmetrical
+  double precision, dimension(max_op_points) :: min_moment
+  double precision :: min_thickness, max_thickness, min_te_angle,              &
+                      curv_threshold, min_flap_degrees, max_flap_degrees
+  integer :: max_curv_reverse
+  character(8), dimension(max_op_points) :: moment_constraint_type
+
+! Xfoil options
+
+  type(xfoil_options_type) :: xfoil_options
+  type(xfoil_geom_options_type) :: xfoil_geom_options
+
+! Other variables needed by this module
+
+  double precision, dimension(:), allocatable :: xseedt, xseedb, zseedt, zseedb
+  type(airfoil_type) :: curr_foil
+  double precision :: growth_allowed
+  integer :: nflap_optimize          ! Number of operating points where flap 
+                                     !   setting will be optimized
+  double precision, dimension(max_op_points) :: scale_factor
 
 ! Variables used to check that XFoil results are repeatable when needed
 
   double precision :: checktol = 0.2d0
   double precision, dimension(max_op_points) :: maxlift = -100.d0
   double precision, dimension(max_op_points) :: mindrag = 100.d0
+
+!$omp threadprivate(curr_foil)
 
   contains
 
