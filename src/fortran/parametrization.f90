@@ -21,7 +21,13 @@ module parametrization
 
   implicit none
 
+  public
+  private :: top_shape_function, bot_shape_function
+
 ! Shape functions for creating airfoil shapes (top and bottom)
+
+  character(11) :: shape_functions
+  integer :: nfunctions_top, nfunctions_bot
 
   double precision, dimension(:,:), pointer :: top_shape_function
   double precision, dimension(:,:), pointer :: bot_shape_function

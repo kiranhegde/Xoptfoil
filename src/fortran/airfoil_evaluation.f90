@@ -84,7 +84,7 @@ module airfoil_evaluation
 subroutine allocate_airfoil_data()
 
   use xfoil_driver,       only : xfoil_init
-  use parametrization,    only : nfunctions_tops, nfunctions_bot,              &
+  use parametrization,    only : nfunctions_top, nfunctions_bot,               &
                                  shape_functions, create_shape_functions
   use airfoil_operations, only : allocate_airfoil
 
