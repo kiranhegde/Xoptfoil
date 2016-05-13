@@ -19,17 +19,17 @@ module airfoil_evaluation
 
 ! Sets up and evaluates the objective function for an airfoil design
 
-  use xfoil_driver, only : airfoil_type, xfoil_geom_options_type,              &
-                           xfoil_options_type
+  use xfoil_driver, only : xfoil_geom_options_type, xfoil_options_type
 
   implicit none
 
   public  
-  private :: aero_objective_function, matchfoil_objective_function
+  private :: aero_objective_function, matchfoil_objective_function, checktol,  &
+             maxlift, mindrag, curr_foil
 
 ! Required optimization settings
 
-  character(11) :: shape_functions
+!FIXME: this should go somewhere else and be used here only when needed
   double precision :: initial_perturb
 
 ! Operating points
@@ -75,6 +75,81 @@ module airfoil_evaluation
 !$omp threadprivate(curr_foil)
 
   contains
+
+!=============================================================================80
+!
+! Allocates memory for airfoil optimization
+!
+!=============================================================================80
+subroutine allocate_airfoil_data()
+
+  use xfoil_driver,       only : xfoil_init
+  use parametrization,    only : nfunctions_tops, nfunctions_bot,              &
+                                 shape_functions, create_shape_functions
+  use airfoil_operations, only : allocate_airfoil
+
+  double precision, dimension(:), allocatable :: modest, modesb
+
+! Allocate shape function setup arrays
+
+  if (trim(shape_functions) == 'naca') then
+    allocate(modest(nfunctions_top))
+    allocate(modesb(nfunctions_bot))
+  else
+    allocate(modest(nfunctions_top*3))
+    allocate(modesb(nfunctions_bot*3))
+  end if
+  modest(:) = 0.d0
+  modesb(:) = 0.d0
+
+! Allocate private memory for airfoil optimization on each thread
+
+!$omp parallel default(shared)
+
+! For NACA, this will create the shape functions.  For Hicks-Henne,
+! it will just allocate them.
+
+  call create_shape_functions(xseedt, xseedb, modest, modesb,                  &
+                              shape_functions, first_time=.true.)
+
+! Allocate memory for working airfoil on each thread
+
+  curr_foil%npoint = size(xseedt,1) + size(xseedb,1) - 1
+  call allocate_airfoil(curr_foil)
+
+! Allocate memory for xfoil
+
+  call xfoil_init()
+
+!$omp end parallel
+
+! Deallocate shape function setup arrays
+
+  deallocate(modest)
+  deallocate(modesb)
+
+end subroutine allocate_airfoil_data
+
+!=============================================================================80
+!
+! Frees memory used during airfoil optimization
+!
+!=============================================================================80
+subroutine deallocate_airfoil_data()
+
+  use parametrization,    only : deallocate_shape_functions
+  use airfoil_operations, only : deallocate_airfoil
+  use xfoil_driver,       only : xfoil_cleanup
+
+!$omp parallel default(shared)
+
+  call deallocate_shape_functions()
+  call deallocate_airfoil(curr_foil)
+  call xfoil_cleanup()
+
+!$omp end parallel
+
+end subroutine deallocate_airfoil_data
 
 !=============================================================================80
 !

@@ -88,12 +88,12 @@ end subroutine read_namelist_inputs
 subroutine initialize(cerrval, cerrmsg) bind(c)
 
   use iso_c_binding,      only : C_INT, C_CHAR
-  use settings,           only : seed_airfoil, airfoil_file, naca_digits,      &
-                                 symmetrical, xseedt, zseedt, xseedb, zseedb
+  use settings,           only : seed_airfoil, airfoil_file, naca_digits
   use airfoil_operations, only : get_seed_airfoil, get_split_points,           &
                                  split_airfoil, deallocate_airfoil
   use xfoil_driver,       only : airfoil_type
-  use memory_util,        only : allocate_airfoil_data
+  use airfoil_evaluation, only : xseedt, zseedt, xseedb, zseedb, symmetrical,  &
+                                 allocate_airfoil_data
   use input_sanity,       only : check_seed
 
   integer(kind=C_INT), intent(out) :: cerrval
@@ -177,8 +177,8 @@ end subroutine iterate
 !=============================================================================80
 subroutine cleanup() bind(c)
 
-  use settings,    only : xseedt, xseedb, zseedt, zseedb
-  use memory_util, only : deallocate_airfoil_data
+  use airfoil_evaluation, only : xseedt, xseedb, zseedt, zseedb,               &
+                                 deallocate_airfoil_data
 
   call deallocate_airfoil_data()
   deallocate(xseedt) 
