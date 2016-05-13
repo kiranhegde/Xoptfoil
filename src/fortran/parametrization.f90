@@ -21,13 +21,12 @@ module parametrization
 
   implicit none
 
-  public
-  private :: top_shape_function, bot_shape_function
+! Some variables used when creating shape functions
+
+  double precision :: initial_perturb
+  character(11) :: shape_functions
 
 ! Shape functions for creating airfoil shapes (top and bottom)
-
-  character(11) :: shape_functions
-  integer :: nfunctions_top, nfunctions_bot
 
   double precision, dimension(:,:), pointer :: top_shape_function
   double precision, dimension(:,:), pointer :: bot_shape_function
@@ -127,7 +126,7 @@ end subroutine create_shape_functions
 !=============================================================================80
 subroutine create_shape(x, modes, shapetype, shape_function)
 
-  use settings, only : initial_perturb, min_bump_width
+  use settings, only : min_bump_width
 
   double precision, dimension(:), intent(in) :: x, modes
   character(*), intent(in) :: shapetype

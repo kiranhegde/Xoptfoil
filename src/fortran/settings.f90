@@ -35,7 +35,6 @@ module settings
 
 ! Operating settings
 
-  character(8), dimension(max_op_points) :: flap_selection
 
 ! Constraints
 
@@ -47,20 +46,12 @@ module settings
   type(ga_options_type) :: ga_options
   type(ds_options_type) :: ds_options
 
-! Matchfoils
-
-  logical match_foils
-  character(80) :: matchfoil_file
 
 !FIXME: these should be moved somewhere else
 ! Other global variables
 
   integer, dimension(:), allocatable :: constrained_dvs
 
-  integer, dimension(max_op_points) :: flap_optimize_points
-
-  double precision, dimension(:), allocatable :: xmatcht, xmatchb, zmatcht,    &
-                                                 zmatchb
 
   character(80) :: output_prefix
 

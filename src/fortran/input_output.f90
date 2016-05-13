@@ -28,19 +28,23 @@ module input_output
 ! Subroutine to read inputs from namelist file
 !
 !=============================================================================80
-subroutine read_inputs(input_file, errval, errmsg)
+subroutine read_inputs(input_file, nfunctions_top, nfunctions_bot, errval,     &
+                       errmsg)
 
+  use parametrization, only : initial_perturb, shape_functions
+
+!FIXME: list only the variables that are needed here
   use settings
+  use airfoil_evaluation
  
   character(*), intent(in) :: input_file
-  integer, intent(out) :: errval
+  integer, intent(out) :: nfunctions_top, nfunctions_bot, errval
   character(80), intent(out) :: errmsg
 
   logical :: viscous_mode, silent_mode, fix_unconverged, feasible_init,        &
              reinitialize, write_designs
   integer :: pso_pop, pso_maxit, simplex_maxit, bl_maxit, npan,                &
-             feasible_init_attempts
-  integer :: ga_pop, ga_maxit
+             feasible_init_attempts, ga_pop, ga_maxit
   double precision :: pso_tol, simplex_tol, ncrit, xtript, xtripb, vaccel
   double precision :: cvpar, cterat, ctrrat, xsref1, xsref2, xpref1, xpref2
   double precision :: feasible_limit
@@ -983,9 +987,9 @@ end subroutine read_inputs
 !=============================================================================80
 subroutine read_inputs_xfoil_only(input_file, airfoil_file, errval, errmsg)
 
-  use settings, only : max_op_points, noppoint, op_mode, op_point, reynolds,   &
-                       mach, use_flap, x_flap, y_flap, flap_degrees,           &
-                       xfoil_options, xfoil_geom_options
+  use airfoil_evaluation, only : max_op_points, noppoint, op_mode, op_point,   &
+                                 reynolds, mach, use_flap, x_flap, y_flap,     &
+                                 flap_degrees, xfoil_options, xfoil_geom_options
  
   character(*), intent(in) :: input_file
   character(80), intent(out) :: airfoil_file

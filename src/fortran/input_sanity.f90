@@ -30,15 +30,20 @@ module input_sanity
 !=============================================================================80
 subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
 
-  use settings
   use math_deps,          only : interp_vector, curvature
-  use xfoil_driver,       only : run_xfoil
+  use xfoil_driver,       only : airfoil_type, run_xfoil
   use xfoil_inc,          only : AMAX
+  use airfoil_operations, only : allocate_airfoil, deallocate_airfoil
+
+!FIXME: use only variables that are needed
+use airfoil_evaluation
+use settings
 
   double precision, intent(in) :: xoffset, zoffset, foilscale
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
 
+  type(airfoil_type) :: check_foil
   double precision, dimension(:), allocatable :: x_interp, thickness
   double precision, dimension(:), allocatable :: zt_interp, zb_interp
   double precision, dimension(size(xseedt,1)+size(xseedb,1)-1) :: curv
@@ -46,7 +51,7 @@ subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
   double precision :: panang1, panang2, maxpanang, curv1, curv2
   double precision :: checkval, len1, len2, growth1, growth2, xtrans, ztrans
   double precision, dimension(noppoint) :: lift, drag, moment, viscrms
-  integer :: i, nptt, nptb, nreversals, nptint, pointst, pointsb
+  integer :: i, nptt, nptb, nreversals, nptint 
   character(30) :: text, text2
   character(4) :: stoptype
 
@@ -61,16 +66,19 @@ subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
   write(*,*) 'Checking to make sure seed airfoil passes all constraints ...'
   write(*,*)
 
+! Allocate memory for seed airfoil
+
+  check_foil%npoint = nptt + nptb - 1
+  call allocate_airfoil(check_foil)
+
 ! Get allowable panel growth rate
 
-  pointst = size(xseedt,1)
-  pointsb = size(xseedb,1)
   growth_allowed = 0.d0
 
 ! Top surface growth rates
 
   len1 = sqrt((xseedt(2)-xseedt(1))**2.d0 + (zseedt(2)-zseedt(1))**2.d0)
-  do i = 2, pointst - 1
+  do i = 2, nptt - 1
     len2 = sqrt((xseedt(i+1)-xseedt(i))**2.d0 + (zseedt(i+1)-zseedt(i))**2.d0)
     growth1 = len2/len1
     growth2 = len1/len2
@@ -82,7 +90,7 @@ subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
 ! Bottom surface growth rates
 
   len1 = sqrt((xseedb(2)-xseedb(1))**2.d0 + (zseedb(2)-zseedb(1))**2.d0)
-  do i = 2, pointsb - 1
+  do i = 2, nptb - 1
     len2 = sqrt((xseedb(i+1)-xseedb(i))**2.d0 + (zseedb(i+1)-zseedb(i))**2.d0)
     growth1 = len2/len1
     growth2 = len1/len2
@@ -94,12 +102,12 @@ subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
 ! Format coordinates in a single loop in derived type
 
   do i = 1, nptt
-    curr_foil%x(i) = xseedt(nptt-i+1)
-    curr_foil%z(i) = zseedt(nptt-i+1)
+    check_foil%x(i) = xseedt(nptt-i+1)
+    check_foil%z(i) = zseedt(nptt-i+1)
   end do
   do i = 1, nptb-1
-    curr_foil%x(i+nptt) = xseedb(i+1)
-    curr_foil%z(i+nptt) = zseedb(i+1)
+    check_foil%x(i+nptt) = xseedb(i+1)
+    check_foil%z(i+nptt) = zseedb(i+1)
   end do
 
 ! Too blunt or sharp leading edge
@@ -246,7 +254,7 @@ subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
 
 !   Compute curvature
 
-    curv = curvature(curr_foil%npoint, curr_foil%x, curr_foil%z)
+    curv = curvature(check_foil%npoint, check_foil%x, check_foil%z)
 
 !   Check number of reversals that exceed the threshold
 
@@ -258,10 +266,10 @@ subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
       if (abs(curv(i)) >= curv_threshold) then
         curv2 = curv(i)
         if (curv2*curv1 < 0.d0) then
-          xtrans = curr_foil%x(i)/foilscale - xoffset
+          xtrans = check_foil%x(i)/foilscale - xoffset
           write(text,'(F8.4)') xtrans
           text = adjustl(text)
-          ztrans = curr_foil%z(i)/foilscale - zoffset
+          ztrans = check_foil%z(i)/foilscale - zoffset
           write(text2,'(F8.4)') ztrans
           text2 = adjustl(text2)
           write(*,*) "Curvature reversal detected near (x, z) = ("//&
@@ -311,7 +319,7 @@ subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
 
 ! Analyze airfoil at requested operating conditions with Xfoil
 
-  call run_xfoil(curr_foil, xfoil_geom_options, op_point(1:noppoint),          &
+  call run_xfoil(check_foil, xfoil_geom_options, op_point(1:noppoint),         &
                  op_mode(1:noppoint), reynolds(1:noppoint), mach(1:noppoint),  &
                  use_flap, x_flap, y_flap, flap_degrees(1:noppoint),           &
                  xfoil_options, lift, drag, moment, viscrms)
@@ -405,6 +413,10 @@ subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
                          "xfoil_paneling_options.")
     end if
   end if
+
+! Deallocate memory for seed airfoil
+
+  call deallocate_airfoil(check_foil)
 
 end subroutine check_seed
 

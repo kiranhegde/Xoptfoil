@@ -19,7 +19,8 @@ module airfoil_evaluation
 
 ! Sets up and evaluates the objective function for an airfoil design
 
-  use xfoil_driver, only : xfoil_geom_options_type, xfoil_options_type
+  use xfoil_driver, only : airfoil_type, xfoil_geom_options_type,              &
+                           xfoil_options_type
 
   implicit none
 
@@ -28,9 +29,6 @@ module airfoil_evaluation
              maxlift, mindrag, curr_foil
 
 ! Required optimization settings
-
-!FIXME: this should go somewhere else and be used here only when needed
-  double precision :: initial_perturb
 
 ! Operating points
 
@@ -42,6 +40,9 @@ module airfoil_evaluation
                                                 flap_degrees, weighting 
   logical :: use_flap
   double precision :: x_flap, y_flap
+
+!FIXME: this should go somewhere else
+character(8), dimension(max_op_points) :: flap_selection
 
 ! Constraints
 
@@ -57,14 +58,22 @@ module airfoil_evaluation
   type(xfoil_options_type) :: xfoil_options
   type(xfoil_geom_options_type) :: xfoil_geom_options
 
+! Options for matching airfoils
+
+  logical match_foils
+  character(80) :: matchfoil_file
+
 ! Other variables needed by this module
 
   double precision, dimension(:), allocatable :: xseedt, xseedb, zseedt, zseedb
+  double precision, dimension(:), allocatable :: xmatcht, xmatchb, zmatcht,    &
+                                                 zmatchb
   type(airfoil_type) :: curr_foil
   double precision :: growth_allowed
   integer :: nflap_optimize          ! Number of operating points where flap 
                                      !   setting will be optimized
   double precision, dimension(max_op_points) :: scale_factor
+  integer, dimension(max_op_points) :: flap_optimize_points
 
 ! Variables used to check that XFoil results are repeatable when needed
 
@@ -81,12 +90,13 @@ module airfoil_evaluation
 ! Allocates memory for airfoil optimization
 !
 !=============================================================================80
-subroutine allocate_airfoil_data()
+subroutine allocate_airfoil_data(nfunctions_top, nfunctions_bot)
 
   use xfoil_driver,       only : xfoil_init
-  use parametrization,    only : nfunctions_top, nfunctions_bot,               &
-                                 shape_functions, create_shape_functions
+  use parametrization,    only : shape_functions, create_shape_functions
   use airfoil_operations, only : allocate_airfoil
+
+  integer, intent(in) :: nfunctions_top, nfunctions_bot
 
   double precision, dimension(:), allocatable :: modest, modesb
 
@@ -203,10 +213,14 @@ end function objective_function_nopenalty
 function aero_objective_function(designvars, include_penalty)
 
   use math_deps,       only : interp_vector, curvature
-  use parametrization, only : top_shape_function, bot_shape_function,          &
+  use parametrization, only : initial_perturb, shape_functions,                &
+                              top_shape_function, bot_shape_function,          &
                               create_airfoil
   use xfoil_driver,    only : run_xfoil
   use xfoil_inc,       only : AMAX
+
+!FIXME: settings is being removed
+use settings
 
   double precision, dimension(:), intent(in) :: designvars
   logical, intent(in), optional :: include_penalty
@@ -236,6 +250,11 @@ function aero_objective_function(designvars, include_penalty)
   integer :: check_idx, flap_idx, dvcounter
   double precision, parameter :: eps = 1.0D-08
   logical :: penalize
+
+! Needed when calling interp_vector, but any errors are ignored here.
+
+  integer :: errval
+  character(80) :: errmsg
 
   nmodest = size(top_shape_function,1)
   nmodesb = size(bot_shape_function,1)
@@ -322,12 +341,14 @@ function aero_objective_function(designvars, include_penalty)
 
   if (xseedt(nptt) <= xseedb(nptb)) then
     nptint = nptt
-    call interp_vector(xseedb, zb_new, xseedt, zb_interp(1:nptt))
+    call interp_vector(xseedb, zb_new, xseedt, zb_interp(1:nptt), errval,      &
+                       errmsg)
     x_interp(1:nptt) = xseedt
     zt_interp(1:nptt) = zt_new  
   else
     nptint = nptb
-    call interp_vector(xseedt, zt_new, xseedb, zt_interp(1:nptb))
+    call interp_vector(xseedt, zt_new, xseedb, zt_interp(1:nptb), errval,      &
+                       errmsg)
     x_interp(1:nptb) = xseedb
     zb_interp(1:nptb) = zb_new
   end if
@@ -619,8 +640,8 @@ end function aero_objective_function
 !=============================================================================80
 function matchfoil_objective_function(designvars)
 
-  use parametrization, only : top_shape_function, bot_shape_function,          &
-                              create_airfoil
+  use parametrization, only : shape_functions, top_shape_function,             &
+                              bot_shape_function, create_airfoil
   use math_deps,       only : norm_2
 
   double precision, dimension(:), intent(in) :: designvars
@@ -690,9 +711,13 @@ end function write_function
 function write_airfoil_optimization_progress(designvars, designcounter)
 
   use math_deps,       only : interp_vector 
-  use parametrization, only : top_shape_function, bot_shape_function,          &
+  use parametrization, only : initial_perturb, shape_functions,                &
+                              top_shape_function, bot_shape_function,          &
                               create_airfoil
   use xfoil_driver,    only : run_xfoil
+
+!FIXME: settings is being removed
+use settings, only : output_prefix
 
   double precision, dimension(:), intent(in) :: designvars
   integer, intent(in) :: designcounter
@@ -877,8 +902,11 @@ end function write_airfoil_optimization_progress
 !=============================================================================80
 function write_matchfoil_optimization_progress(designvars, designcounter)
 
-  use parametrization, only : top_shape_function, bot_shape_function,          &
-                              create_airfoil
+  use parametrization, only : shape_functions, top_shape_function,             &
+                              bot_shape_function, create_airfoil
+
+!FIXME: settings is being removed
+use settings, only : output_prefix
 
   double precision, dimension(:), intent(in) :: designvars
   integer, intent(in) :: designcounter
@@ -988,6 +1016,9 @@ end function write_matchfoil_optimization_progress
 !=============================================================================80
 function write_function_restart_cleanup(restart_status, global_search,         &
                                         local_search)
+
+!FIXME: settings is being removed
+use settings, only : output_prefix
 
   character(*), intent(in) :: restart_status, global_search, local_search
   integer :: write_function_restart_cleanup

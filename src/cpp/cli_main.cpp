@@ -24,6 +24,7 @@ void print_error ( char *array, int len )
 int main ( int argc, char *argv[] )
 {
   char input_file[80], errmsg[80];
+  int nfunctions_top, nfunctions_bot;
   int errval, i;
 
   // Print program info
@@ -48,12 +49,13 @@ int main ( int argc, char *argv[] )
 
   // Read namelist inputs
 
-  read_namelist_inputs(input_file, &errval, errmsg);
+  read_namelist_inputs(input_file, &nfunctions_top, &nfunctions_bot, &errval,  
+                       errmsg);
   if (errval != 0) { print_error(errmsg, 80); return 1; }
 
   // Initialize
 
-  initialize(&errval, errmsg);
+  initialize(&nfunctions_top, &nfunctions_bot, &errval, errmsg);
   if (errval != 0) { print_error(errmsg, 80); return 1; }
 
   // Deallocate memory

@@ -23,21 +23,19 @@ module xoptfoil_interface
 
 !=============================================================================80
 !
-! Converts fortran errval/errmsg output to C (only for use within this module)
+! Converts fortran errmsg output to C (only for use within this module)
 !
 !=============================================================================80
-subroutine convert_to_c(errval, errmsg, msglen, cerrval, cerrmsg)
+subroutine convert_to_c(errmsg, msglen, cerrmsg)
 
   use iso_c_binding, only : C_INT, C_CHAR
 
-  integer, intent(in) :: errval, msglen
+  integer, intent(in) :: msglen
   character(len=msglen), intent(in) :: errmsg
-  integer(kind=C_INT), intent(out) :: cerrval
   character(kind=C_CHAR, len=1), dimension(msglen), intent(out) :: cerrmsg
 
   integer :: i
 
-  cerrval = errval
   do i = 1, msglen
     cerrmsg(i) = errmsg(i:i)
   end do
@@ -49,16 +47,17 @@ end subroutine convert_to_c
 ! Reads inputs from fortran namelist file
 !
 !=============================================================================80
-subroutine read_namelist_inputs(cinput_file, cerrval, cerrmsg) bind(c)
+subroutine read_namelist_inputs(cinput_file, nfunctions_top, nfunctions_bot,   &
+                                errval, cerrmsg) bind(c)
 
   use iso_c_binding, only : C_INT, C_CHAR
   use input_output,  only : read_inputs
 
   character(kind=C_CHAR, len=1), dimension(80), intent(in) :: cinput_file
-  integer(kind=C_INT), intent(out) :: cerrval
+  integer(kind=C_INT), intent(out) :: nfunctions_top, nfunctions_bot, errval
   character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
 
-  integer :: errval, i
+  integer :: i
   character(80) :: input_file, errmsg
 
   errval = 0
@@ -72,11 +71,11 @@ subroutine read_namelist_inputs(cinput_file, cerrval, cerrmsg) bind(c)
 
 ! Read Fortran namelist inputs
 
-  call read_inputs(input_file, errval, errmsg)
+  call read_inputs(input_file, nfunctions_top, nfunctions_bot, errval, errmsg)
 
 ! Convert to C outputs
 
-  call convert_to_c(errval, errmsg, 80, cerrval, cerrmsg)
+  call convert_to_c(errmsg, 80, cerrmsg)
 
 end subroutine read_namelist_inputs
 
@@ -85,10 +84,9 @@ end subroutine read_namelist_inputs
 ! Reads seed airfoil, allocates memory, checks seed
 !
 !=============================================================================80
-subroutine initialize(cerrval, cerrmsg) bind(c)
+subroutine initialize(nfunctions_top, nfunctions_bot, errval, cerrmsg) bind(c)
 
   use iso_c_binding,      only : C_INT, C_CHAR
-  use settings,           only : seed_airfoil, airfoil_file, naca_digits
   use airfoil_operations, only : get_seed_airfoil, get_split_points,           &
                                  split_airfoil, deallocate_airfoil
   use xfoil_driver,       only : airfoil_type
@@ -96,11 +94,15 @@ subroutine initialize(cerrval, cerrmsg) bind(c)
                                  allocate_airfoil_data
   use input_sanity,       only : check_seed
 
-  integer(kind=C_INT), intent(out) :: cerrval
+!FIXME: settings will be removed
+use settings,           only : seed_airfoil, airfoil_file, naca_digits
+
+  integer(kind=C_INT), intent(in) :: nfunctions_top, nfunctions_bot
+  integer(kind=C_INT), intent(out) :: errval
   character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
 
   type(airfoil_type) :: buffer_foil
-  integer :: errval, pointst, pointsb
+  integer :: pointst, pointsb
   character(80) :: errmsg
   double precision :: xoffset, zoffset, foilscale
 
@@ -115,7 +117,7 @@ subroutine initialize(cerrval, cerrmsg) bind(c)
 ! Return if there was an error
 
   if (errval /= 0) then
-    call convert_to_c(errval, errmsg, 80, cerrval, cerrmsg)
+    call convert_to_c(errmsg, 80, cerrmsg)
     return
   end if
 
@@ -134,7 +136,7 @@ subroutine initialize(cerrval, cerrmsg) bind(c)
 
 ! Allocate memory for airfoil analysis
 
-  call allocate_airfoil_data()
+  call allocate_airfoil_data(nfunctions_top, nfunctions_bot)
 
 ! Check that seed airfoil passes constraints
 
@@ -142,7 +144,7 @@ subroutine initialize(cerrval, cerrmsg) bind(c)
 
 ! Convert to C outputs
 
-  call convert_to_c(errval, errmsg, 80, cerrval, cerrmsg)
+  call convert_to_c(errmsg, 80, cerrmsg)
  
 end subroutine initialize
 
@@ -151,9 +153,11 @@ end subroutine initialize
 ! Sets up optimizer data
 !
 !=============================================================================80
-subroutine optimizer_setup(cerrval, cerrmsg) bind(c)
+subroutine optimizer_setup(errval, cerrmsg) bind(c)
 
-  integer(kind=C_INT), intent(out) :: cerrval
+  use iso_c_binding,      only : C_INT, C_CHAR
+
+  integer(kind=C_INT), intent(out) :: errval
   character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
 
 end subroutine optimizer_setup
@@ -163,9 +167,11 @@ end subroutine optimizer_setup
 ! Iterates optimizer
 !
 !=============================================================================80
-subroutine iterate(cerrval, cerrmsg) bind(c)
+subroutine iterate(errval, cerrmsg) bind(c)
 
-  integer(kind=C_INT), intent(out) :: cerrval
+  use iso_c_binding,      only : C_INT, C_CHAR
+
+  integer(kind=C_INT), intent(out) :: errval
   character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
 
 end subroutine iterate
