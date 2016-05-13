@@ -1,3 +1,20 @@
+!  This file is part of XOPTFOIL.
+
+!  XOPTFOIL is free software: you can redistribute it and/or modify
+!  it under the terms of the GNU General Public License as published by
+!  the Free Software Foundation, either version 3 of the License, or
+!  (at your option) any later version.
+
+!  XOPTFOIL is distributed in the hope that it will be useful,
+!  but WITHOUT ANY WARRANTY; without even the implied warranty of
+!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!  GNU General Public License for more details.
+
+!  You should have received a copy of the GNU General Public License
+!  along with XOPTFOIL.  If not, see <http://www.gnu.org/licenses/>.
+
+!  Copyright (C) 2014 -- 2016 Daniel Prosser
+
 module xoptfoil_interface
 
   implicit none
@@ -65,7 +82,7 @@ end subroutine read_namelist_inputs
 
 !=============================================================================80
 !
-! Initializes data for optimization
+! Reads seed airfoil, allocates memory, checks seed
 !
 !=============================================================================80
 subroutine initialize(cerrval, cerrmsg) bind(c)
@@ -123,18 +140,35 @@ subroutine initialize(cerrval, cerrmsg) bind(c)
 
   call check_seed(xoffset, zoffset, foilscale, errval, errmsg)
 
-! Return if there was an error
-
-  if (errval /= 0) then
-    call convert_to_c(errval, errmsg, 80, cerrval, cerrmsg)
-    return
-  end if
-
 ! Convert to C outputs
 
   call convert_to_c(errval, errmsg, 80, cerrval, cerrmsg)
  
 end subroutine initialize
+
+!=============================================================================80
+!
+! Sets up optimizer data
+!
+!=============================================================================80
+subroutine optimizer_setup(cerrval, cerrmsg) bind(c)
+
+  integer(kind=C_INT), intent(out) :: cerrval
+  character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
+
+end subroutine optimizer_setup
+
+!=============================================================================80
+!
+! Iterates optimizer
+!
+!=============================================================================80
+subroutine iterate(cerrval, cerrmsg) bind(c)
+
+  integer(kind=C_INT), intent(out) :: cerrval
+  character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
+
+end subroutine iterate
 
 !=============================================================================80
 !
