@@ -23,7 +23,7 @@ module parametrization
 
 ! Some variables used when creating shape functions
 
-  double precision :: initial_perturb
+  double precision :: initial_perturb, min_bump_width
   character(11) :: shape_functions
 
 ! Shape functions for creating airfoil shapes (top and bottom)
@@ -125,8 +125,6 @@ end subroutine create_shape_functions
 !
 !=============================================================================80
 subroutine create_shape(x, modes, shapetype, shape_function)
-
-  use settings, only : min_bump_width
 
   double precision, dimension(:), intent(in) :: x, modes
   character(*), intent(in) :: shapetype

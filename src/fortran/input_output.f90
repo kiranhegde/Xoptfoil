@@ -28,18 +28,28 @@ module input_output
 ! Subroutine to read inputs from namelist file
 !
 !=============================================================================80
-subroutine read_inputs(input_file, nfunctions_top, nfunctions_bot, errval,     &
+subroutine read_inputs(input_file, search_type, global_search, local_search,   &
+                       seed_airfoil, airfoil_file, naca_digits, nfunctions_top,&
+                       nfunctions_bot, restart, restart_write_freq, errval,    &
                        errmsg)
 
-  use parametrization, only : initial_perturb, shape_functions
+  use iso_c_binding, only : C_BOOL
+  use parametrization, only : initial_perturb, shape_functions, min_bump_width
 
 !FIXME: list only the variables that are needed here
   use settings
   use airfoil_evaluation
  
   character(*), intent(in) :: input_file
-  integer, intent(out) :: nfunctions_top, nfunctions_bot, errval
-  character(80), intent(out) :: errmsg
+  character(16), intent(out) :: search_type
+  character(17), intent(out) :: global_search
+  character(7), intent(out) :: local_search
+  character(10), intent(out) :: seed_airfoil
+  character(80), intent(out) :: airfoil_file, errmsg
+  character(4), intent(out) :: naca_digits
+  integer, intent(out) :: nfunctions_top, nfunctions_bot, restart_write_freq,  &
+                          errval
+  logical(kind=C_BOOL), intent(out) :: restart
 
   logical :: viscous_mode, silent_mode, fix_unconverged, feasible_init,        &
              reinitialize, write_designs

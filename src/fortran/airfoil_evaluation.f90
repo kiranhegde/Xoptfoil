@@ -119,8 +119,8 @@ subroutine allocate_airfoil_data(nfunctions_top, nfunctions_bot)
 ! For NACA, this will create the shape functions.  For Hicks-Henne,
 ! it will just allocate them.
 
-  call create_shape_functions(xseedt, xseedb, modest, modesb,                  &
-                              shape_functions, first_time=.true.)
+  call create_shape_functions(xseedt, xseedb, modest, modesb, shape_functions, &
+                              first_time=.true.)
 
 ! Allocate memory for working airfoil on each thread
 

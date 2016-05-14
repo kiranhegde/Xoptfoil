@@ -19,63 +19,108 @@ module xoptfoil_interface
 
   implicit none
 
+  public
+  private :: convert_char_to_c, convert_char_to_fortran
+
   contains
 
 !=============================================================================80
 !
-! Converts fortran errmsg output to C (only for use within this module)
+! Converts fortran char array to C
 !
 !=============================================================================80
-subroutine convert_to_c(errmsg, msglen, cerrmsg)
+subroutine convert_char_to_c(msg, msglen, cmsg)
 
-  use iso_c_binding, only : C_INT, C_CHAR
+  use iso_c_binding, only : C_CHAR
 
   integer, intent(in) :: msglen
-  character(len=msglen), intent(in) :: errmsg
-  character(kind=C_CHAR, len=1), dimension(msglen), intent(out) :: cerrmsg
+  character(len=msglen), intent(in) :: msg
+  character(kind=C_CHAR, len=1), dimension(msglen), intent(out) :: cmsg
 
   integer :: i
 
   do i = 1, msglen
-    cerrmsg(i) = errmsg(i:i)
+    cmsg(i) = msg(i:i)
   end do
 
-end subroutine convert_to_c
+end subroutine convert_char_to_c
+
+!=============================================================================80
+!
+! Converts C char array to fortran
+!
+!=============================================================================80
+subroutine convert_char_to_fortran(cmsg, msglen, msg)
+
+  use iso_c_binding, only : C_CHAR
+
+  integer, intent(in) :: msglen
+  character(kind=C_CHAR, len=1), dimension(msglen), intent(in) :: cmsg
+  character(len=msglen), intent(out) :: msg
+
+  integer :: i
+
+  do i = 1, msglen
+    msg(i:i) = cmsg(i)
+  end do
+
+end subroutine convert_char_to_fortran
 
 !=============================================================================80
 !
 ! Reads inputs from fortran namelist file
 !
 !=============================================================================80
-subroutine read_namelist_inputs(cinput_file, nfunctions_top, nfunctions_bot,   &
-                                errval, cerrmsg) bind(c)
+subroutine read_namelist_inputs(cinput_file, csearch_type, cglobal_search,     &
+                                clocal_search, cseed_airfoil, cairfoil_file,   &
+                                cnaca_digits, nfunctions_top, nfunctions_bot,  &
+                                restart, restart_write_freq, errval, cerrmsg)  &
+                                bind(c)
 
-  use iso_c_binding, only : C_INT, C_CHAR
+  use iso_c_binding, only : C_INT, C_CHAR, C_BOOL
   use input_output,  only : read_inputs
 
   character(kind=C_CHAR, len=1), dimension(80), intent(in) :: cinput_file
-  integer(kind=C_INT), intent(out) :: nfunctions_top, nfunctions_bot, errval
-  character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
+  character(kind=C_CHAR, len=1), dimension(16), intent(out) :: csearch_type
+  character(kind=C_CHAR, len=1), dimension(17), intent(out) :: cglobal_search
+  character(kind=C_CHAR, len=1), dimension(7), intent(out) :: clocal_search
+  character(kind=C_CHAR, len=1), dimension(10), intent(out) :: cseed_airfoil
+  character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cairfoil_file,  &
+                                                               cerrmsg
+  character(kind=C_CHAR, len=1), dimension(4), intent(out) :: cnaca_digits
+  integer(kind=C_INT), intent(out) :: nfunctions_top, nfunctions_bot,          &
+                                      restart_write_freq, errval
+  logical(kind=C_BOOL), intent(out) :: restart
 
-  integer :: i
-  character(80) :: input_file, errmsg
+  character(80) :: input_file, airfoil_file, errmsg
+  character(16) :: search_type
+  character(17) :: global_search
+  character(7) :: local_search
+  character(10) :: seed_airfoil
+  character(4) :: naca_digits
 
   errval = 0
   errmsg = ''
 
-! Convert C char array to Fortran char array
+! Convert input_file from C to Fortran style char array
   
-  do i = 1, 80
-    input_file(i:i) = cinput_file(i)
-  end do
+  call convert_char_to_fortran(cinput_file, 80, input_file)
 
 ! Read Fortran namelist inputs
 
-  call read_inputs(input_file, nfunctions_top, nfunctions_bot, errval, errmsg)
+  call read_inputs(input_file, search_type, global_search, local_search,       &
+                   seed_airfoil, airfoil_file, naca_digits, nfunctions_top,    &
+                   nfunctions_bot, restart, restart_write_freq, errval, errmsg)
 
-! Convert to C outputs
+! Convert char arrays to C
 
-  call convert_to_c(errmsg, 80, cerrmsg)
+  call convert_char_to_c(search_type, 16, csearch_type)
+  call convert_char_to_c(global_search, 17, cglobal_search)
+  call convert_char_to_c(local_search, 7, clocal_search)
+  call convert_char_to_c(seed_airfoil, 10, cseed_airfoil)
+  call convert_char_to_c(airfoil_file, 80, cairfoil_file)
+  call convert_char_to_c(naca_digits, 4, cnaca_digits)
+  call convert_char_to_c(errmsg, 80, cerrmsg)
 
 end subroutine read_namelist_inputs
 
@@ -84,7 +129,8 @@ end subroutine read_namelist_inputs
 ! Reads seed airfoil, allocates memory, checks seed
 !
 !=============================================================================80
-subroutine initialize(nfunctions_top, nfunctions_bot, errval, cerrmsg) bind(c)
+subroutine initialize(cseed_airfoil, cairfoil_file, cnaca_digits,              &
+                      nfunctions_top, nfunctions_bot, errval, cerrmsg) bind(c)
 
   use iso_c_binding,      only : C_INT, C_CHAR
   use airfoil_operations, only : get_seed_airfoil, get_split_points,           &
@@ -94,20 +140,28 @@ subroutine initialize(nfunctions_top, nfunctions_bot, errval, cerrmsg) bind(c)
                                  allocate_airfoil_data
   use input_sanity,       only : check_seed
 
-!FIXME: settings will be removed
-use settings,           only : seed_airfoil, airfoil_file, naca_digits
-
+  character(kind=C_CHAR, len=1), dimension(10), intent(in) :: cseed_airfoil
+  character(kind=C_CHAR, len=1), dimension(80), intent(in) :: cairfoil_file
+  character(kind=C_CHAR, len=1), dimension(4), intent(in) :: cnaca_digits
   integer(kind=C_INT), intent(in) :: nfunctions_top, nfunctions_bot
   integer(kind=C_INT), intent(out) :: errval
   character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
 
   type(airfoil_type) :: buffer_foil
   integer :: pointst, pointsb
-  character(80) :: errmsg
+  character(10) :: seed_airfoil
+  character(80) :: airfoil_file, errmsg
+  character(4) :: naca_digits
   double precision :: xoffset, zoffset, foilscale
 
   errval = 0
   errmsg = ''
+
+! Convert C char arrays to Fortran
+
+  call convert_char_to_fortran(cseed_airfoil, 10, seed_airfoil)
+  call convert_char_to_fortran(cairfoil_file, 80, airfoil_file)
+  call convert_char_to_fortran(cnaca_digits, 4, naca_digits)
   
 ! Load seed airfoil into memory, including transformations and smoothing
 
@@ -117,7 +171,7 @@ use settings,           only : seed_airfoil, airfoil_file, naca_digits
 ! Return if there was an error
 
   if (errval /= 0) then
-    call convert_to_c(errmsg, 80, cerrmsg)
+    call convert_char_to_c(errmsg, 80, cerrmsg)
     return
   end if
 
@@ -144,7 +198,7 @@ use settings,           only : seed_airfoil, airfoil_file, naca_digits
 
 ! Convert to C outputs
 
-  call convert_to_c(errmsg, 80, cerrmsg)
+  call convert_char_to_c(errmsg, 80, cerrmsg)
  
 end subroutine initialize
 

@@ -24,18 +24,6 @@ module settings
 
   implicit none
 
-! Optimization settings
-
-  character(80) :: search_type, global_search, local_search, seed_airfoil,     &
-                   airfoil_file
-  character(4) :: naca_digits
-  integer :: restart_write_freq
-  double precision :: min_bump_width
-  logical :: restart
-
-! Operating settings
-
-
 ! Constraints
 
   character(4) :: seed_violation_handling

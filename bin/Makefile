@@ -7,7 +7,7 @@ FCFLAGS=-g -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -Wall
 #FCFLAGS=-g -O3 -static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -flto
 #FCFLAGS=-g -O3
 
-CPPFLAGS=$(FCFLAGS)
+CPPFLAGS=-g -Wall
 
 #####################################################################
 
