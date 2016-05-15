@@ -30,8 +30,8 @@ module input_output
 !=============================================================================80
 subroutine read_inputs(input_file, search_type, global_search, local_search,   &
                        seed_airfoil, airfoil_file, naca_digits, nfunctions_top,&
-                       nfunctions_bot, restart, restart_write_freq, errval,    &
-                       errmsg)
+                       nfunctions_bot, restart, restart_write_freq, flap_flag, &
+                       errval, errmsg)
 
   use iso_c_binding, only : C_BOOL
   use parametrization, only : initial_perturb, shape_functions, min_bump_width
@@ -50,6 +50,7 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
   integer, intent(out) :: nfunctions_top, nfunctions_bot, restart_write_freq,  &
                           errval
   logical(kind=C_BOOL), intent(out) :: restart
+  integer, dimension(max_op_points), intent(out) :: flap_flag
 
   logical :: viscous_mode, silent_mode, fix_unconverged, feasible_init,        &
              reinitialize, write_designs
@@ -65,6 +66,7 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
   integer :: i, iunit, ioerr, iostat1, counter, idx
   character(30) :: text
   character(10) :: pso_convergence_profile, parents_selection_method
+  character(8), dimension(max_op_points) :: flap_selection
 
   namelist /optimization_options/ search_type, global_search, local_search,    &
             seed_airfoil, airfoil_file, naca_digits, shape_functions,          &
@@ -150,6 +152,7 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
   reynolds(:) = 1.0D+05
   mach(:) = 0.d0
   flap_selection(:) = 'specify'
+  flap_flag(:) = 0
   flap_degrees(:) = 0.d0
   weighting(:) = 1.d0
 
@@ -177,7 +180,8 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
   call namelist_check('constraints', iostat1, 'stop', errval, errmsg)
   if (errval /= 0) return
 
-! Store operating points where flap setting will be optimized
+! Store operating points where flap setting will be optimized. Also ocnverts
+! flap_selection to int array for easier passing to C.
 
   nflap_optimize = 0
   if (use_flap .and. (.not. match_foils)) then
@@ -185,6 +189,7 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
       if (flap_selection(i) == 'optimize') then
         nflap_optimize = nflap_optimize + 1
         flap_optimize_points(nflap_optimize) = i
+        flap_flag(i) = 1
       end if
     end do
   end if

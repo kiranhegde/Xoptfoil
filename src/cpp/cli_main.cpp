@@ -26,6 +26,8 @@ int main ( int argc, char *argv[] )
   char input_file[80], airfoil_file[80], errmsg[80], seed_airfoil[10]; 
   char search_type[16], global_search[17], local_search[7], naca_digits[4];
   int nfunctions_top, nfunctions_bot, restart_write_freq, errval, i;
+//FIXME: max_op_points should be specified where?
+  int flap_flag[30];
   bool restart;
 
   // Print program info
@@ -52,8 +54,8 @@ int main ( int argc, char *argv[] )
 
   read_namelist_inputs(input_file, search_type, global_search, local_search,
                        seed_airfoil, airfoil_file, naca_digits, &nfunctions_top,
-                       &nfunctions_bot, &restart, &restart_write_freq, 
-                       &errval, errmsg);
+                       &nfunctions_bot, &restart, &restart_write_freq,
+                       flap_flag, &errval, errmsg);
   if (errval != 0) { print_error(errmsg, 80); return 1; }
 
   // Initialize

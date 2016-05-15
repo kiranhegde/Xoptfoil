@@ -41,9 +41,6 @@ module airfoil_evaluation
   logical :: use_flap
   double precision :: x_flap, y_flap
 
-!FIXME: this should go somewhere else
-character(8), dimension(max_op_points) :: flap_selection
-
 ! Constraints
 
   logical :: check_curvature, symmetrical

@@ -74,8 +74,8 @@ end subroutine convert_char_to_fortran
 subroutine read_namelist_inputs(cinput_file, csearch_type, cglobal_search,     &
                                 clocal_search, cseed_airfoil, cairfoil_file,   &
                                 cnaca_digits, nfunctions_top, nfunctions_bot,  &
-                                restart, restart_write_freq, errval, cerrmsg)  &
-                                bind(c)
+                                restart, restart_write_freq, flap_flag, errval,&
+                                cerrmsg) bind(c)
 
   use iso_c_binding, only : C_INT, C_CHAR, C_BOOL
   use input_output,  only : read_inputs
@@ -91,6 +91,8 @@ subroutine read_namelist_inputs(cinput_file, csearch_type, cglobal_search,     &
   integer(kind=C_INT), intent(out) :: nfunctions_top, nfunctions_bot,          &
                                       restart_write_freq, errval
   logical(kind=C_BOOL), intent(out) :: restart
+!FIXME: max_op_points should be specified where?
+  integer(kind=C_INT), dimension(30), intent(out) :: flap_flag
 
   character(80) :: input_file, airfoil_file, errmsg
   character(16) :: search_type
@@ -110,7 +112,8 @@ subroutine read_namelist_inputs(cinput_file, csearch_type, cglobal_search,     &
 
   call read_inputs(input_file, search_type, global_search, local_search,       &
                    seed_airfoil, airfoil_file, naca_digits, nfunctions_top,    &
-                   nfunctions_bot, restart, restart_write_freq, errval, errmsg)
+                   nfunctions_bot, restart, restart_write_freq, flap_flag,     &
+                   errval, errmsg)
 
 ! Convert char arrays to C
 
