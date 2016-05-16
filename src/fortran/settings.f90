@@ -24,23 +24,16 @@ module settings
 
   implicit none
 
-! Constraints
-
-  character(4) :: seed_violation_handling
-
 ! Structures for other settings
 
   type(pso_options_type) :: pso_options
   type(ga_options_type) :: ga_options
   type(ds_options_type) :: ds_options
 
-
 !FIXME: these should be moved somewhere else
 ! Other global variables
 
   integer, dimension(:), allocatable :: constrained_dvs
-
-
   character(80) :: output_prefix
 
 end module settings

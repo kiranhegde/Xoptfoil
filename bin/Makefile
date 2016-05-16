@@ -113,8 +113,8 @@ genetic_algorithm.o: $(DIR)/fortran/genetic_algorithm.f90
 simplex_search.o: $(DIR)/fortran/simplex_search.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/simplex_search.f90
 
-input_output.o: $(DIR)/fortran/input_output.F90
-	$(FC) -c $(FCFLAGS) $(OMP_FLAG) -I$(INCLUDE) $(DIR)/fortran/input_output.F90
+input_output.o: $(DIR)/fortran/input_output.f90
+	$(FC) -c $(FCFLAGS) $(OMP_FLAG) -I$(INCLUDE) $(DIR)/fortran/input_output.f90
 
 input_sanity.o: $(DIR)/fortran/input_sanity.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/input_sanity.f90

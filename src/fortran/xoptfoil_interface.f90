@@ -71,35 +71,36 @@ end subroutine convert_char_to_fortran
 ! Reads inputs from fortran namelist file
 !
 !=============================================================================80
-subroutine read_namelist_inputs(cinput_file, csearch_type, cglobal_search,     &
-                                clocal_search, cseed_airfoil, cairfoil_file,   &
-                                cnaca_digits, nfunctions_top, nfunctions_bot,  &
-                                restart, restart_write_freq, flap_flag, errval,&
-                                cerrmsg) bind(c)
+subroutine read_namelist_inputs(                                               &
+                   cinput_file, max_op_points, csearch_type, cglobal_search,   &
+                   clocal_search, cseed_airfoil, cairfoil_file, cnaca_digits,  &
+                   nfunctions_top, nfunctions_bot, restart, restart_write_freq,&
+                   flap_flag, cseed_violation_handling, errval, cerrmsg) bind(c)
 
   use iso_c_binding, only : C_INT, C_CHAR, C_BOOL
   use input_output,  only : read_inputs
 
   character(kind=C_CHAR, len=1), dimension(80), intent(in) :: cinput_file
+  integer(kind=C_INT), intent(in) :: max_op_points
   character(kind=C_CHAR, len=1), dimension(16), intent(out) :: csearch_type
   character(kind=C_CHAR, len=1), dimension(17), intent(out) :: cglobal_search
   character(kind=C_CHAR, len=1), dimension(7), intent(out) :: clocal_search
   character(kind=C_CHAR, len=1), dimension(10), intent(out) :: cseed_airfoil
   character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cairfoil_file,  &
                                                                cerrmsg
-  character(kind=C_CHAR, len=1), dimension(4), intent(out) :: cnaca_digits
+  character(kind=C_CHAR, len=1), dimension(4), intent(out) :: cnaca_digits,    &
+                                                        cseed_violation_handling
   integer(kind=C_INT), intent(out) :: nfunctions_top, nfunctions_bot,          &
                                       restart_write_freq, errval
   logical(kind=C_BOOL), intent(out) :: restart
-!FIXME: max_op_points should be specified where?
-  integer(kind=C_INT), dimension(30), intent(out) :: flap_flag
+  integer(kind=C_INT), dimension(max_op_points), intent(out) :: flap_flag
 
   character(80) :: input_file, airfoil_file, errmsg
   character(16) :: search_type
   character(17) :: global_search
   character(7) :: local_search
   character(10) :: seed_airfoil
-  character(4) :: naca_digits
+  character(4) :: naca_digits, seed_violation_handling
 
   errval = 0
   errmsg = ''
@@ -113,7 +114,7 @@ subroutine read_namelist_inputs(cinput_file, csearch_type, cglobal_search,     &
   call read_inputs(input_file, search_type, global_search, local_search,       &
                    seed_airfoil, airfoil_file, naca_digits, nfunctions_top,    &
                    nfunctions_bot, restart, restart_write_freq, flap_flag,     &
-                   errval, errmsg)
+                   seed_violation_handling, errval, errmsg)
 
 ! Convert char arrays to C
 
@@ -123,6 +124,7 @@ subroutine read_namelist_inputs(cinput_file, csearch_type, cglobal_search,     &
   call convert_char_to_c(seed_airfoil, 10, cseed_airfoil)
   call convert_char_to_c(airfoil_file, 80, cairfoil_file)
   call convert_char_to_c(naca_digits, 4, cnaca_digits)
+  call convert_char_to_c(seed_violation_handling, 4, cseed_violation_handling)
   call convert_char_to_c(errmsg, 80, cerrmsg)
 
 end subroutine read_namelist_inputs
@@ -133,7 +135,8 @@ end subroutine read_namelist_inputs
 !
 !=============================================================================80
 subroutine initialize(cseed_airfoil, cairfoil_file, cnaca_digits,              &
-                      nfunctions_top, nfunctions_bot, errval, cerrmsg) bind(c)
+                      nfunctions_top, nfunctions_bot, cseed_violation_handling,&
+                      errval, cerrmsg) bind(c)
 
   use iso_c_binding,      only : C_INT, C_CHAR
   use airfoil_operations, only : get_seed_airfoil, get_split_points,           &
@@ -145,7 +148,8 @@ subroutine initialize(cseed_airfoil, cairfoil_file, cnaca_digits,              &
 
   character(kind=C_CHAR, len=1), dimension(10), intent(in) :: cseed_airfoil
   character(kind=C_CHAR, len=1), dimension(80), intent(in) :: cairfoil_file
-  character(kind=C_CHAR, len=1), dimension(4), intent(in) :: cnaca_digits
+  character(kind=C_CHAR, len=1), dimension(4), intent(in) :: cnaca_digits,     &
+                                                        cseed_violation_handling
   integer(kind=C_INT), intent(in) :: nfunctions_top, nfunctions_bot
   integer(kind=C_INT), intent(out) :: errval
   character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
@@ -154,7 +158,7 @@ subroutine initialize(cseed_airfoil, cairfoil_file, cnaca_digits,              &
   integer :: pointst, pointsb
   character(10) :: seed_airfoil
   character(80) :: airfoil_file, errmsg
-  character(4) :: naca_digits
+  character(4) :: naca_digits, seed_violation_handling
   double precision :: xoffset, zoffset, foilscale
 
   errval = 0
@@ -165,6 +169,8 @@ subroutine initialize(cseed_airfoil, cairfoil_file, cnaca_digits,              &
   call convert_char_to_fortran(cseed_airfoil, 10, seed_airfoil)
   call convert_char_to_fortran(cairfoil_file, 80, airfoil_file)
   call convert_char_to_fortran(cnaca_digits, 4, naca_digits)
+  call convert_char_to_fortran(cseed_violation_handling, 4,                    &
+                               seed_violation_handling)
   
 ! Load seed airfoil into memory, including transformations and smoothing
 
@@ -197,7 +203,8 @@ subroutine initialize(cseed_airfoil, cairfoil_file, cnaca_digits,              &
 
 ! Check that seed airfoil passes constraints
 
-  call check_seed(xoffset, zoffset, foilscale, errval, errmsg)
+  call check_seed(xoffset, zoffset, foilscale, seed_violation_handling, errval,&
+                  errmsg)
 
 ! Convert to C outputs
 

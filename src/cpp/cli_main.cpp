@@ -26,8 +26,10 @@ int main ( int argc, char *argv[] )
 {
   char input_file[80], airfoil_file[80], errmsg[80], seed_airfoil[10]; 
   char search_type[16], global_search[17], local_search[7], naca_digits[4];
+  char seed_violation_handling[4];
   int nfunctions_top, nfunctions_bot, restart_write_freq, errval, i;
-  int flap_flag[MAX_OP_POINTS];
+  int maxoppt = MAX_OP_POINTS;
+  int flap_flag[maxoppt];
   bool restart;
 
   // Print program info
@@ -52,16 +54,17 @@ int main ( int argc, char *argv[] )
 
   // Read namelist inputs
 
-  read_namelist_inputs(input_file, search_type, global_search, local_search,
-                       seed_airfoil, airfoil_file, naca_digits, &nfunctions_top,
-                       &nfunctions_bot, &restart, &restart_write_freq,
-                       flap_flag, &errval, errmsg);
+  read_namelist_inputs(input_file, &maxoppt, search_type, global_search,
+                       local_search, seed_airfoil, airfoil_file, naca_digits,
+                       &nfunctions_top, &nfunctions_bot, &restart, 
+                       &restart_write_freq, flap_flag, seed_violation_handling,
+                       &errval, errmsg);
   if (errval != 0) { print_error(errmsg, 80); return 1; }
 
   // Initialize
 
   initialize(seed_airfoil, airfoil_file, naca_digits, &nfunctions_top, 
-             &nfunctions_bot, &errval, errmsg);
+             &nfunctions_bot, seed_violation_handling, &errval, errmsg);
   if (errval != 0) { print_error(errmsg, 80); return 1; }
 
   // Deallocate memory

@@ -28,7 +28,8 @@ module input_sanity
 ! minimum allowable pitching moment.
 !
 !=============================================================================80
-subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
+subroutine check_seed(xoffset, zoffset, foilscale, seed_violation_handling,    &
+                      errval, errmsg)
 
   use math_deps,          only : interp_vector, curvature
   use xfoil_driver,       only : airfoil_type, run_xfoil
@@ -37,9 +38,9 @@ subroutine check_seed(xoffset, zoffset, foilscale, errval, errmsg)
 
 !FIXME: use only variables that are needed
 use airfoil_evaluation
-use settings
 
   double precision, intent(in) :: xoffset, zoffset, foilscale
+  character(4), intent(in) :: seed_violation_handling
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
 

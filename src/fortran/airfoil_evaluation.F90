@@ -17,7 +17,10 @@
 
 module airfoil_evaluation
 
-! Defines MAX_OP_POINTS variable
+! constants.h defines MAX_OP_POINTS variable, needed by both Fortran and C++ to
+! declare some fixed-size arrays. The preprocessor macro method is used instead 
+! of a global variable with BIND(C) attribute because BIND(C) conflicts with
+! PARAMETER attribute.
 
 #include "constants.h"
 
@@ -32,7 +35,12 @@ module airfoil_evaluation
   private :: aero_objective_function, matchfoil_objective_function, checktol,  &
              maxlift, mindrag, curr_foil
 
-! Required optimization settings
+! Note: this module stores many variables (below).  Normally, it would be better
+! to pass the needed variables to the functions when they are called, but this 
+! is not possible if we want the optimization routines to call generic objective
+! functions when evaluating designs (e.g. objval = objfunc(x)). Therefore, these
+! variables are set during the setup phase and used as needed by the functions
+! in this module.
 
 ! Operating points
 

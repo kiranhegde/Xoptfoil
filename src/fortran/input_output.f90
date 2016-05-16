@@ -31,9 +31,7 @@ module input_output
 subroutine read_inputs(input_file, search_type, global_search, local_search,   &
                        seed_airfoil, airfoil_file, naca_digits, nfunctions_top,&
                        nfunctions_bot, restart, restart_write_freq, flap_flag, &
-                       errval, errmsg)
-
-#include "constants.h"
+                       seed_violation_handling, errval, errmsg)
 
   use iso_c_binding, only : C_BOOL
   use parametrization, only : initial_perturb, shape_functions, min_bump_width
@@ -48,11 +46,11 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
   character(7), intent(out) :: local_search
   character(10), intent(out) :: seed_airfoil
   character(80), intent(out) :: airfoil_file, errmsg
-  character(4), intent(out) :: naca_digits
+  character(4), intent(out) :: naca_digits, seed_violation_handling
   integer, intent(out) :: nfunctions_top, nfunctions_bot, restart_write_freq,  &
                           errval
   logical(kind=C_BOOL), intent(out) :: restart
-  integer, dimension(MAX_OP_POINTS), intent(out) :: flap_flag
+  integer, dimension(:), intent(inout) :: flap_flag
 
   logical :: viscous_mode, silent_mode, fix_unconverged, feasible_init,        &
              reinitialize, write_designs
@@ -68,7 +66,7 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
   integer :: i, iunit, ioerr, iostat1, counter, idx
   character(30) :: text
   character(10) :: pso_convergence_profile, parents_selection_method
-  character(8), dimension(MAX_OP_POINTS) :: flap_selection
+  character(8), dimension(size(flap_flag,1)) :: flap_selection
 
   namelist /optimization_options/ search_type, global_search, local_search,    &
             seed_airfoil, airfoil_file, naca_digits, shape_functions,          &
