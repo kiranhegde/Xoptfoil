@@ -180,7 +180,7 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
   call namelist_check('constraints', iostat1, 'stop', errval, errmsg)
   if (errval /= 0) return
 
-! Store operating points where flap setting will be optimized. Also ocnverts
+! Store operating points where flap setting will be optimized. Also converts
 ! flap_selection to int array for easier passing to C.
 
   nflap_optimize = 0

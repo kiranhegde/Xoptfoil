@@ -176,9 +176,6 @@ subroutine initialize(cseed_airfoil, cairfoil_file, cnaca_digits,              &
 
   call get_seed_airfoil(seed_airfoil, airfoil_file, naca_digits, buffer_foil,  &
                         xoffset, zoffset, foilscale, errval, errmsg)
-
-! Return if there was an error
-
   if (errval /= 0) then
     call convert_char_to_c(errmsg, 80, cerrmsg)
     return
@@ -205,26 +202,18 @@ subroutine initialize(cseed_airfoil, cairfoil_file, cnaca_digits,              &
 
   call check_seed(xoffset, zoffset, foilscale, seed_violation_handling, errval,&
                   errmsg)
+  if (errval /= 0) then
+    call convert_char_to_c(errmsg, 80, cerrmsg)
+    return
+  end if
+
+! Set side constraints for optimizer
 
 ! Convert to C outputs
 
   call convert_char_to_c(errmsg, 80, cerrmsg)
  
 end subroutine initialize
-
-!=============================================================================80
-!
-! Sets up optimizer data
-!
-!=============================================================================80
-subroutine optimizer_setup(errval, cerrmsg) bind(c)
-
-  use iso_c_binding,      only : C_INT, C_CHAR
-
-  integer(kind=C_INT), intent(out) :: errval
-  character(kind=C_CHAR, len=1), dimension(80), intent(out) :: cerrmsg
-
-end subroutine optimizer_setup
 
 !=============================================================================80
 !
