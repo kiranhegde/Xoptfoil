@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string.h>
+#include "constants.h"
 #include "xoptfoil_interface.h"
 
 /******************************************************************************/
@@ -26,8 +27,7 @@ int main ( int argc, char *argv[] )
   char input_file[80], airfoil_file[80], errmsg[80], seed_airfoil[10]; 
   char search_type[16], global_search[17], local_search[7], naca_digits[4];
   int nfunctions_top, nfunctions_bot, restart_write_freq, errval, i;
-//FIXME: max_op_points should be specified where?
-  int flap_flag[30];
+  int flap_flag[MAX_OP_POINTS];
   bool restart;
 
   // Print program info

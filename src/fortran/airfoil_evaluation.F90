@@ -17,6 +17,10 @@
 
 module airfoil_evaluation
 
+! Defines MAX_OP_POINTS variable
+
+#include "constants.h"
+
 ! Sets up and evaluates the objective function for an airfoil design
 
   use xfoil_driver, only : airfoil_type, xfoil_geom_options_type,              &
@@ -32,11 +36,10 @@ module airfoil_evaluation
 
 ! Operating points
 
-  integer, parameter :: max_op_points = 30
   integer :: noppoint
-  character(7), dimension(max_op_points) :: op_mode
-  character(9), dimension(max_op_points) :: optimization_type
-  double precision, dimension(max_op_points) :: op_point, reynolds, mach,      &
+  character(7), dimension(MAX_OP_POINTS) :: op_mode
+  character(9), dimension(MAX_OP_POINTS) :: optimization_type
+  double precision, dimension(MAX_OP_POINTS) :: op_point, reynolds, mach,      &
                                                 flap_degrees, weighting 
   logical :: use_flap
   double precision :: x_flap, y_flap
@@ -44,11 +47,11 @@ module airfoil_evaluation
 ! Constraints
 
   logical :: check_curvature, symmetrical
-  double precision, dimension(max_op_points) :: min_moment
+  double precision, dimension(MAX_OP_POINTS) :: min_moment
   double precision :: min_thickness, max_thickness, min_te_angle,              &
                       curv_threshold, min_flap_degrees, max_flap_degrees
   integer :: max_curv_reverse
-  character(8), dimension(max_op_points) :: moment_constraint_type
+  character(8), dimension(MAX_OP_POINTS) :: moment_constraint_type
 
 ! Xfoil options
 
@@ -69,14 +72,14 @@ module airfoil_evaluation
   double precision :: growth_allowed
   integer :: nflap_optimize          ! Number of operating points where flap 
                                      !   setting will be optimized
-  double precision, dimension(max_op_points) :: scale_factor
-  integer, dimension(max_op_points) :: flap_optimize_points
+  double precision, dimension(MAX_OP_POINTS) :: scale_factor
+  integer, dimension(MAX_OP_POINTS) :: flap_optimize_points
 
 ! Variables used to check that XFoil results are repeatable when needed
 
   double precision :: checktol = 0.2d0
-  double precision, dimension(max_op_points) :: maxlift = -100.d0
-  double precision, dimension(max_op_points) :: mindrag = 100.d0
+  double precision, dimension(MAX_OP_POINTS) :: maxlift = -100.d0
+  double precision, dimension(MAX_OP_POINTS) :: mindrag = 100.d0
 
 !$omp threadprivate(curr_foil)
 

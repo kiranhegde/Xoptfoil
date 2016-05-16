@@ -33,6 +33,8 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
                        nfunctions_bot, restart, restart_write_freq, flap_flag, &
                        errval, errmsg)
 
+#include "constants.h"
+
   use iso_c_binding, only : C_BOOL
   use parametrization, only : initial_perturb, shape_functions, min_bump_width
 
@@ -50,7 +52,7 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
   integer, intent(out) :: nfunctions_top, nfunctions_bot, restart_write_freq,  &
                           errval
   logical(kind=C_BOOL), intent(out) :: restart
-  integer, dimension(max_op_points), intent(out) :: flap_flag
+  integer, dimension(MAX_OP_POINTS), intent(out) :: flap_flag
 
   logical :: viscous_mode, silent_mode, fix_unconverged, feasible_init,        &
              reinitialize, write_designs
@@ -66,7 +68,7 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
   integer :: i, iunit, ioerr, iostat1, counter, idx
   character(30) :: text
   character(10) :: pso_convergence_profile, parents_selection_method
-  character(8), dimension(max_op_points) :: flap_selection
+  character(8), dimension(MAX_OP_POINTS) :: flap_selection
 
   namelist /optimization_options/ search_type, global_search, local_search,    &
             seed_airfoil, airfoil_file, naca_digits, shape_functions,          &
@@ -1002,9 +1004,9 @@ end subroutine read_inputs
 !=============================================================================80
 subroutine read_inputs_xfoil_only(input_file, airfoil_file, errval, errmsg)
 
-  use airfoil_evaluation, only : max_op_points, noppoint, op_mode, op_point,   &
-                                 reynolds, mach, use_flap, x_flap, y_flap,     &
-                                 flap_degrees, xfoil_options, xfoil_geom_options
+  use airfoil_evaluation, only : noppoint, op_mode, op_point, reynolds, mach,  &
+                                 use_flap, x_flap, y_flap, flap_degrees,       &
+                                 xfoil_options, xfoil_geom_options
  
   character(*), intent(in) :: input_file
   character(80), intent(out) :: airfoil_file
