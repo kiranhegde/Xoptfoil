@@ -28,45 +28,112 @@ module input_output
 ! Subroutine to read inputs from namelist file
 !
 !=============================================================================80
-subroutine read_inputs(input_file, search_type, global_search, local_search,   &
-                       seed_airfoil, airfoil_file, naca_digits, nfunctions_top,&
-                       nfunctions_bot, restart, restart_write_freq, flap_flag, &
-                       seed_violation_handling, errval, errmsg)
+subroutine read_inputs(errval, errmsg)
 
   use iso_c_binding, only : C_BOOL
-  use parametrization, only : initial_perturb, shape_functions, min_bump_width
+!FIXME: These should be output as well, and set later in initialize
+!use parametrization, only : initial_perturb, shape_functions, min_bump_width
 
-!FIXME: list only the variables that are needed here
-  use settings
-  use airfoil_evaluation
- 
   character(*), intent(in) :: input_file
+  integer, intent(in) :: max_op_points
+
+! Optimization settings
+
   character(16), intent(out) :: search_type
   character(17), intent(out) :: global_search
   character(7), intent(out) :: local_search
   character(10), intent(out) :: seed_airfoil
-  character(80), intent(out) :: airfoil_file, errmsg
-  character(4), intent(out) :: naca_digits, seed_violation_handling
-  integer, intent(out) :: nfunctions_top, nfunctions_bot, restart_write_freq,  &
-                          errval
+  character(80), intent(out) :: airfoil_file
+  character(4), intent(out) :: naca_digits
+  character(11), intent(out) :: shape_functions
+  integer, intent(out) :: nfunctions_top, nfunctions_bot
+  double precision, intent(out) :: initial_perturb, min_bump_width
   logical(kind=C_BOOL), intent(out) :: restart
-  integer, dimension(:), intent(inout) :: flap_flag
+  integer, intent(out) :: restart_write_freq
+  logical(kind=C_BOOL), intent(out) :: write_designs
 
-  logical :: viscous_mode, silent_mode, fix_unconverged, feasible_init,        &
-             reinitialize, write_designs
-  integer :: pso_pop, pso_maxit, simplex_maxit, bl_maxit, npan,                &
-             feasible_init_attempts, ga_pop, ga_maxit
-  double precision :: pso_tol, simplex_tol, ncrit, xtript, xtripb, vaccel
-  double precision :: cvpar, cterat, ctrrat, xsref1, xsref2, xpref1, xpref2
-  double precision :: feasible_limit
-  double precision :: ga_tol, parent_fraction, roulette_selection_pressure,    &
-                      tournament_fraction, crossover_range_factor,             &
-                      mutant_probability, chromosome_mutation_rate,            &
-                      mutation_range_factor
+! Operating points
+
+  integer, intent(out) :: noppoint
+  logical(kind=C_BOOL), intent(out) :: use_flap
+  double precision, intent(out) :: x_flap, y_flap
+  integer, dimension(max_op_points), intent(out) :: op_mode_flag
+  integer, dimension(max_op_points), intent(out) :: optimization_type_flag
+  double precision, dimension(max_op_points), intent(out) :: op_point,         &
+                                                             reynolds, mach 
+  integer, dimension(max_op_points), intent(out) :: flap_selection_flag
+  double precision, dimension(max_op_points), intent(out) :: flap_degrees,     &
+                                                             weighting
+
+  character(7), dimension(max_op_points) :: op_mode
+  character(9), dimension(max_op_points) :: optimization_type
+  character(8), dimension(max_op_points) :: flap_selection
+
+! Constraints
+
+  character(4), intent(out) :: seed_violation_handling
+  double precision, intent(out) :: min_thickness, max_thickness, min_te_angle
+  logical(kind=C_BOOL), intent(out) :: check_curvature
+  integer, intent(out) :: max_curv_reverse
+  double precision, intent(out) :: curv_threshold, max_flap_degrees,           &
+                                   min_flap_degrees
+  integer, dimension(max_op_points), intent(out) :: moment_constraint_type_flag
+  double precision, dimension(max_op_points), intent(out) :: min_moment
+  
+  character(8), dimension(max_op_points) :: moment_constraint_type
+
+! Initialization options
+
+  logical(kind=C_BOOL), intent(out) :: feasible_init
+  double precision, intent(out) :: feasible_limit
+  integer, intent(out) :: feasible_init_attempts
+
+! Particle swarm options
+
+  integer, intent(out) :: pso_pop
+  double precision, intent(out) :: pso_tol
+  integer, intent(out) :: pso_maxit
+  character(10), intent(out) :: pso_convergence_profile
+
+! Genetic algorithm options
+
+  integer, intent(out) :: ga_pop
+  double precision, intent(out) :: ga_tol
+  integer, intent(out) :: ga_maxit
+  character(10), intent(out) :: parents_selection_method
+  double precision, intent(out) :: parent_fraction,                            &
+                              roulette_selection_pressure, tournament_fraction,&
+                              crossover_range_factor, mutant_probability,      &
+                              chromosome_mutation_rate, mutant_range_factor
+
+! Simplex options
+
+  double precision, intent(out) :: simplex_tol
+  integer, intent(out) :: simplex_maxit
+
+! Xfoil run options
+
+  double precision, intent(out) :: ncrit, xtript, xtripb
+  logical(kind=C_BOOL), intent(out) :: viscous_mode, silent_mode
+  integer, intent(out) :: bl_maxit
+  double precision, intent(out) :: vaccel
+  logical(kind=C_BOOL), intent(out) :: fix_unconverged, reinitialize
+
+! Xfoil paneling options
+
+  integer, intent(out) :: npan
+  double precision, intent(out) :: cvpar, cterat, ctrrat, xsref1, xsref2,      &
+                                   xpref1, xpref2
+
+! Matchfoil options
+
+  logical(kind=C_BOOL), intent(out) :: match_foils
+  character(80), intent(out) :: matchfoil_file
+  
+! Non I/O variables
+
   integer :: i, iunit, ioerr, iostat1, counter, idx
   character(30) :: text
-  character(10) :: pso_convergence_profile, parents_selection_method
-  character(8), dimension(size(flap_flag,1)) :: flap_selection
 
   namelist /optimization_options/ search_type, global_search, local_search,    &
             seed_airfoil, airfoil_file, naca_digits, shape_functions,          &
@@ -152,7 +219,6 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
   reynolds(:) = 1.0D+05
   mach(:) = 0.d0
   flap_selection(:) = 'specify'
-  flap_flag(:) = 0
   flap_degrees(:) = 0.d0
   weighting(:) = 1.d0
 
@@ -189,7 +255,6 @@ subroutine read_inputs(input_file, search_type, global_search, local_search,   &
       if (flap_selection(i) == 'optimize') then
         nflap_optimize = nflap_optimize + 1
         flap_optimize_points(nflap_optimize) = i
-        flap_flag(i) = 1
       end if
     end do
   end if
