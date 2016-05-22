@@ -23,6 +23,7 @@ module parametrization
 
 ! Some variables used when creating shape functions
 
+!FIXME: these must be set by the initialize function
   double precision :: initial_perturb, min_bump_width
   character(11) :: shape_functions
 

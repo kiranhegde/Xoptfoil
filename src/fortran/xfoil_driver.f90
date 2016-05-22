@@ -21,6 +21,7 @@ module xfoil_driver
 
   implicit none
 
+!FIXME: use types from types.F90
   type airfoil_type
 
     integer :: npoint

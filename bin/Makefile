@@ -39,7 +39,7 @@ endif
 ####### Definitions, rules, targets #################################
 
 #OBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o airfoil_evaluation.o optimization_util.o particle_swarm.o genetic_algorithm.o simplex_search.o input_output.o input_sanity.o memory_util.o optimization_driver.o xoptfoil_interface.o dummy_main.o
-OBJ=math_deps.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o optimization_util.o settings.o parametrization.o airfoil_operations.o airfoil_evaluation.o input_output.o input_sanity.o xoptfoil_interface.o cli_main.o
+OBJ=math_deps.o util.o types.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o input_output.o parametrization.o airfoil_operations.o airfoil_evaluation.o input_sanity.o xoptfoil_interface.o cli_main.o
 EXE=xoptfoil
 XOBJ=math_deps.o vardef.o xfoil_inc.o xfoil_math.o my_equivalence.o xfoil_geom.o blpar_inc.o xbl_inc.o xfoil_bl.o xfoil_aero.o xfoil_driver.o parametrization.o airfoil_operations.o airfoil_evaluation.o input_output.o xfoil_only.o
 XEXE=xfoil_only
@@ -60,14 +60,27 @@ $(XEXE): $(XOBJ)
 clean: 
 	rm -f *.mod *.o
 
-math_deps.o: $(DIR)/fortran/math_deps.f90
-	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/math_deps.f90
+##################################################################### Deprecated
 
 settings.o: $(DIR)/fortran/settings.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/settings.f90
+optimization_driver.o: $(DIR)/fortran/optimization_driver.f90
+	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/optimization_driver.f90
+
+##################################################################### Deprecated
+
+math_deps.o: $(DIR)/fortran/math_deps.f90
+	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/math_deps.f90
+
+util.o: $(DIR)/fortran/util.f90
+	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/util.f90
+
+types.o: $(DIR)/fortran/types.F90
+	$(FC) -c $(FCFLAGS) $(OMP_FLAG) -I$(INCLUDE) $(DIR)/fortran/types.F90
 
 xfoil_inc.o: $(DIR)/fortran/xfoil_inc.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/xfoil_inc.f90
+
 xfoil_math.o: $(DIR)/fortran/xfoil_deps/xfoil_math.f
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(XFOIL_REAL8_FLAG) $(DIR)/fortran/xfoil_deps/xfoil_math.f
 
@@ -118,9 +131,6 @@ input_output.o: $(DIR)/fortran/input_output.f90
 
 input_sanity.o: $(DIR)/fortran/input_sanity.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/input_sanity.f90
-
-optimization_driver.o: $(DIR)/fortran/optimization_driver.f90
-	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/optimization_driver.f90
 
 main.o: $(DIR)/fortran/main.f90
 	$(FC) -c $(FCFLAGS) $(OMP_FLAG) $(DIR)/fortran/main.f90

@@ -19,52 +19,7 @@ module xoptfoil_interface
 
   implicit none
 
-  public
-  private :: convert_char_to_c, convert_char_to_fortran
-
   contains
-
-!=============================================================================80
-!
-! Converts fortran char array to C
-!
-!=============================================================================80
-subroutine convert_char_to_c(msg, msglen, cmsg)
-
-  use iso_c_binding, only : C_CHAR
-
-  integer, intent(in) :: msglen
-  character(len=msglen), intent(in) :: msg
-  character(kind=C_CHAR, len=1), dimension(msglen), intent(out) :: cmsg
-
-  integer :: i
-
-  do i = 1, msglen
-    cmsg(i) = msg(i:i)
-  end do
-
-end subroutine convert_char_to_c
-
-!=============================================================================80
-!
-! Converts C char array to fortran
-!
-!=============================================================================80
-subroutine convert_char_to_fortran(cmsg, msglen, msg)
-
-  use iso_c_binding, only : C_CHAR
-
-  integer, intent(in) :: msglen
-  character(kind=C_CHAR, len=1), dimension(msglen), intent(in) :: cmsg
-  character(len=msglen), intent(out) :: msg
-
-  integer :: i
-
-  do i = 1, msglen
-    msg(i:i) = cmsg(i)
-  end do
-
-end subroutine convert_char_to_fortran
 
 !=============================================================================80
 !
@@ -78,6 +33,7 @@ subroutine read_namelist_inputs(                                               &
                    flap_flag, cseed_violation_handling, errval, cerrmsg) bind(c)
 
   use iso_c_binding, only : C_INT, C_CHAR, C_BOOL
+  use util,          only : convert_char_to_fortran, convert_char_to_c
   use input_output,  only : read_inputs
 
   character(kind=C_CHAR, len=1), dimension(80), intent(in) :: cinput_file
@@ -139,6 +95,7 @@ subroutine initialize(cseed_airfoil, cairfoil_file, cnaca_digits,              &
                       errval, cerrmsg) bind(c)
 
   use iso_c_binding,      only : C_INT, C_CHAR
+  use util,               only : convert_char_to_fortran, convert_char_to_c
   use airfoil_operations, only : get_seed_airfoil, get_split_points,           &
                                  split_airfoil, deallocate_airfoil
   use xfoil_driver,       only : airfoil_type

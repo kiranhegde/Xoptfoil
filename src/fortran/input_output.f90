@@ -28,111 +28,126 @@ module input_output
 ! Subroutine to read inputs from namelist file
 !
 !=============================================================================80
-subroutine read_inputs(errval, errmsg)
+subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
+                   operating_points_settings, constraints_settings,            &
+                   initialization_settings, particle_swarm_settings,           &
+                   genetic_algorithm_settings, simplex_settings,               &
+                   xfoil_settings, xfoil_paneling_settings, matchfoil_settings,&
+                   errval, errmsg)
 
   use iso_c_binding, only : C_BOOL
-!FIXME: These should be output as well, and set later in initialize
-!use parametrization, only : initial_perturb, shape_functions, min_bump_width
+  use types, only : optimization_settings_type, operating_points_settings_type,&
+                 constraints_settings_type, initialization_settings_type,      &
+                 particle_swarm_settings_type, genetic_algorithm_settings_type,&
+                 simplex_settings_type, xfoil_settings_type,                   &
+                 xfoil_paneling_settings_type, matchfoil_settings_type
+  use util, only : convert_char_to_c
 
   character(*), intent(in) :: input_file
   integer, intent(in) :: max_op_points
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+! Derived types to group settings
+
+  type(optimization_settings_type), intent(out) :: optimization_settings
+  type(operating_points_settings_type), intent(out) :: operating_points_settings
+  type(constraints_settings_type), intent(out) :: constraints_settings
+  type(initialization_settings_type), intent(out) :: initialization_settings
+  type(particle_swarm_settings_type), intent(out) :: particle_swarm_settings
+  type(genetic_algorithm_settings_type), intent(out) ::                        &
+                                                      genetic_algorithm_settings
+  type(simplex_settings_type), intent(out) :: simplex_settings
+  type(xfoil_settings_type), intent(out) :: xfoil_settings
+  type(xfoil_paneling_settings_type), intent(out) :: xfoil_paneling_settings
+  type(matchfoil_settings_type), intent(out) :: matchfoil_settings
 
 ! Optimization settings
 
-  character(16), intent(out) :: search_type
-  character(17), intent(out) :: global_search
-  character(7), intent(out) :: local_search
-  character(10), intent(out) :: seed_airfoil
-  character(80), intent(out) :: airfoil_file
-  character(4), intent(out) :: naca_digits
-  character(11), intent(out) :: shape_functions
-  integer, intent(out) :: nfunctions_top, nfunctions_bot
-  double precision, intent(out) :: initial_perturb, min_bump_width
-  logical(kind=C_BOOL), intent(out) :: restart
-  integer, intent(out) :: restart_write_freq
-  logical(kind=C_BOOL), intent(out) :: write_designs
+  character(16) :: search_type
+  character(17) :: global_search
+  character(7) :: local_search
+  character(10) :: seed_airfoil
+  character(80) :: airfoil_file
+  character(4) :: naca_digits
+  character(11) :: shape_functions
+  integer :: nfunctions_top, nfunctions_bot
+  double precision :: initial_perturb, min_bump_width
+  logical(kind=C_BOOL) :: restart
+  integer :: restart_write_freq
+  logical(kind=C_BOOL) :: write_designs
 
 ! Operating points
 
-  integer, intent(out) :: noppoint
-  logical(kind=C_BOOL), intent(out) :: use_flap
-  double precision, intent(out) :: x_flap, y_flap
-  integer, dimension(max_op_points), intent(out) :: op_mode_flag
-  integer, dimension(max_op_points), intent(out) :: optimization_type_flag
-  double precision, dimension(max_op_points), intent(out) :: op_point,         &
-                                                             reynolds, mach 
-  integer, dimension(max_op_points), intent(out) :: flap_selection_flag
-  double precision, dimension(max_op_points), intent(out) :: flap_degrees,     &
-                                                             weighting
-
+  integer :: noppoint
+  logical(kind=C_BOOL) :: use_flap
+  double precision :: x_flap, y_flap
   character(7), dimension(max_op_points) :: op_mode
   character(9), dimension(max_op_points) :: optimization_type
+  double precision, dimension(max_op_points) :: op_point, reynolds, mach
   character(8), dimension(max_op_points) :: flap_selection
+  double precision, dimension(max_op_points) :: flap_degrees, weighting
 
 ! Constraints
 
-  character(4), intent(out) :: seed_violation_handling
-  double precision, intent(out) :: min_thickness, max_thickness, min_te_angle
-  logical(kind=C_BOOL), intent(out) :: check_curvature
-  integer, intent(out) :: max_curv_reverse
-  double precision, intent(out) :: curv_threshold, max_flap_degrees,           &
-                                   min_flap_degrees
-  integer, dimension(max_op_points), intent(out) :: moment_constraint_type_flag
-  double precision, dimension(max_op_points), intent(out) :: min_moment
-  
+  character(4) :: seed_violation_handling
+  double precision :: min_thickness, max_thickness, min_te_angle
+  logical(kind=C_BOOL) :: check_curvature
+  integer :: max_curv_reverse
+  double precision :: curv_threshold, max_flap_degrees, min_flap_degrees
   character(8), dimension(max_op_points) :: moment_constraint_type
+  double precision, dimension(max_op_points) :: min_moment
 
 ! Initialization options
 
-  logical(kind=C_BOOL), intent(out) :: feasible_init
-  double precision, intent(out) :: feasible_limit
-  integer, intent(out) :: feasible_init_attempts
+  logical(kind=C_BOOL) :: feasible_init
+  double precision :: feasible_limit
+  integer :: feasible_init_attempts
 
 ! Particle swarm options
 
-  integer, intent(out) :: pso_pop
-  double precision, intent(out) :: pso_tol
-  integer, intent(out) :: pso_maxit
-  character(10), intent(out) :: pso_convergence_profile
+  integer :: pso_pop
+  double precision :: pso_tol
+  integer :: pso_maxit
+  character(10) :: pso_convergence_profile
 
 ! Genetic algorithm options
 
-  integer, intent(out) :: ga_pop
-  double precision, intent(out) :: ga_tol
-  integer, intent(out) :: ga_maxit
-  character(10), intent(out) :: parents_selection_method
-  double precision, intent(out) :: parent_fraction,                            &
-                              roulette_selection_pressure, tournament_fraction,&
-                              crossover_range_factor, mutant_probability,      &
-                              chromosome_mutation_rate, mutant_range_factor
+  integer :: ga_pop
+  double precision :: ga_tol
+  integer :: ga_maxit
+  character(10) :: parents_selection_method
+  double precision :: parent_fraction, roulette_selection_pressure,            &
+                      tournament_fraction, crossover_range_factor,             &
+                      mutant_probability, chromosome_mutation_rate,            &
+                      mutant_range_factor
 
 ! Simplex options
 
-  double precision, intent(out) :: simplex_tol
-  integer, intent(out) :: simplex_maxit
+  double precision :: simplex_tol
+  integer :: simplex_maxit
 
 ! Xfoil run options
 
-  double precision, intent(out) :: ncrit, xtript, xtripb
-  logical(kind=C_BOOL), intent(out) :: viscous_mode, silent_mode
-  integer, intent(out) :: bl_maxit
-  double precision, intent(out) :: vaccel
-  logical(kind=C_BOOL), intent(out) :: fix_unconverged, reinitialize
+  double precision :: ncrit, xtript, xtripb
+  logical(kind=C_BOOL) :: viscous_mode, silent_mode
+  integer :: bl_maxit
+  double precision :: vaccel
+  logical(kind=C_BOOL) :: fix_unconverged, reinitialize
 
 ! Xfoil paneling options
 
-  integer, intent(out) :: npan
-  double precision, intent(out) :: cvpar, cterat, ctrrat, xsref1, xsref2,      &
-                                   xpref1, xpref2
+  integer :: npan
+  double precision :: cvpar, cterat, ctrrat, xsref1, xsref2, xpref1, xpref2
 
 ! Matchfoil options
 
-  logical(kind=C_BOOL), intent(out) :: match_foils
-  character(80), intent(out) :: matchfoil_file
+  logical(kind=C_BOOL) :: match_foils
+  character(80) :: matchfoil_file
   
-! Non I/O variables
+! Other variables
 
-  integer :: i, iunit, ioerr, iostat1, counter, idx
+  integer :: i, j, iunit, ioerr, iostat1, counter, idx
   character(30) :: text
 
   namelist /optimization_options/ search_type, global_search, local_search,    &
@@ -249,15 +264,16 @@ subroutine read_inputs(errval, errmsg)
 ! Store operating points where flap setting will be optimized. Also converts
 ! flap_selection to int array for easier passing to C.
 
-  nflap_optimize = 0
-  if (use_flap .and. (.not. match_foils)) then
-    do i = 1, noppoint
-      if (flap_selection(i) == 'optimize') then
-        nflap_optimize = nflap_optimize + 1
-        flap_optimize_points(nflap_optimize) = i
-      end if
-    end do
-  end if
+!FIXME: this should go somewhere else, called by initialize
+!  nflap_optimize = 0
+!  if (use_flap .and. (.not. match_foils)) then
+!    do i = 1, noppoint
+!      if (flap_selection(i) == 'optimize') then
+!        nflap_optimize = nflap_optimize + 1
+!        flap_optimize_points(nflap_optimize) = i
+!      end if
+!    end do
+!  end if
 
 ! Normalize weightings for operating points
 
@@ -305,42 +321,43 @@ subroutine read_inputs(errval, errmsg)
   if (trim(search_type) == 'global_and_local' .or. trim(search_type) ==        &
       'global') then
   
-!   Set design variables with side constraints
-
-    if (trim(shape_functions) == 'naca') then
-
-!     For NACA, we will only constrain the flap deflection
-
-      allocate(constrained_dvs(nflap_optimize))
-      counter = 0
-      do i = nfunctions_top + nfunctions_bot + 1,                              &
-             nfunctions_top + nfunctions_bot + nflap_optimize
-        counter = counter + 1
-        constrained_dvs(counter) = i
-      end do
-          
-    else
-
-!     For Hicks-Henne, also constrain bump locations and width
-
-      allocate(constrained_dvs(2*nfunctions_top + 2*nfunctions_bot +           &
-                               nflap_optimize))
-      counter = 0
-      do i = 1, nfunctions_top + nfunctions_bot
-        counter = counter + 1
-        idx = 3*(i-1) + 2      ! DV index of bump location, shape function i
-        constrained_dvs(counter) = idx
-        counter = counter + 1
-        idx = 3*(i-1) + 3      ! Index of bump width, shape function i
-        constrained_dvs(counter) = idx
-      end do
-      do i = 3*(nfunctions_top + nfunctions_bot) + 1,                          &
-             3*(nfunctions_top + nfunctions_bot) + nflap_optimize
-        counter = counter + 1
-        constrained_dvs(counter) = i
-      end do
-
-    end if
+!FIXME: this should go somewhere else, called by initialize
+!!   Set design variables with side constraints
+!
+!    if (trim(shape_functions) == 'naca') then
+!
+!!     For NACA, we will only constrain the flap deflection
+!
+!      allocate(constrained_dvs(nflap_optimize))
+!      counter = 0
+!      do i = nfunctions_top + nfunctions_bot + 1,                              &
+!             nfunctions_top + nfunctions_bot + nflap_optimize
+!        counter = counter + 1
+!        constrained_dvs(counter) = i
+!      end do
+!          
+!    else
+!
+!!     For Hicks-Henne, also constrain bump locations and width
+!
+!      allocate(constrained_dvs(2*nfunctions_top + 2*nfunctions_bot +           &
+!                               nflap_optimize))
+!      counter = 0
+!      do i = 1, nfunctions_top + nfunctions_bot
+!        counter = counter + 1
+!        idx = 3*(i-1) + 2      ! DV index of bump location, shape function i
+!        constrained_dvs(counter) = idx
+!        counter = counter + 1
+!        idx = 3*(i-1) + 3      ! Index of bump width, shape function i
+!        constrained_dvs(counter) = idx
+!      end do
+!      do i = 3*(nfunctions_top + nfunctions_bot) + 1,                          &
+!             3*(nfunctions_top + nfunctions_bot) + nflap_optimize
+!        counter = counter + 1
+!        constrained_dvs(counter) = i
+!      end do
+!
+!    end if
 
     if (trim(global_search) == 'particle_swarm') then
 
@@ -351,20 +368,6 @@ subroutine read_inputs(errval, errmsg)
       call namelist_check('particle_swarm_options', iostat1, 'warn', errval,   &
                           errmsg)
       if (errval /= 0) return
-      pso_options%pop = pso_pop
-      pso_options%tol = pso_tol
-      pso_options%maxspeed = initial_perturb
-      pso_options%maxit = pso_maxit
-      pso_options%convergence_profile = pso_convergence_profile
-      pso_options%feasible_init = feasible_init
-      pso_options%feasible_limit = feasible_limit
-      pso_options%feasible_init_attempts = feasible_init_attempts
-      pso_options%write_designs = write_designs
-      if (.not. match_foils) then
-        pso_options%relative_fmin_report = .true.
-      else
-        pso_options%relative_fmin_report = .false.
-      end if
 
     else if (trim(global_search) == 'genetic_algorithm') then
 
@@ -375,27 +378,6 @@ subroutine read_inputs(errval, errmsg)
       call namelist_check('genetic_algorithm_options', iostat1, 'warn', errval,&
                           errmsg)
       if (errval /= 0) return
-      ga_options%pop = ga_pop
-      ga_options%tol = ga_tol
-      ga_options%maxit = ga_maxit
-      ga_options%parents_selection_method = parents_selection_method
-      ga_options%parent_fraction = parent_fraction
-      ga_options%roulette_selection_pressure = roulette_selection_pressure
-      ga_options%tournament_fraction = tournament_fraction
-      ga_options%crossover_range_factor = crossover_range_factor
-      ga_options%mutant_probability = mutant_probability
-      ga_options%chromosome_mutation_rate = chromosome_mutation_rate
-      ga_options%mutation_range_factor = mutation_range_factor
-      ga_options%feasible_init = feasible_init
-      ga_options%feasible_limit = feasible_limit
-      ga_options%feasible_init_attempts = feasible_init_attempts
-      ga_options%write_designs = write_designs
-      if (.not. match_foils) then
-        ga_options%relative_fmin_report = .true.
-      else
-        ga_options%relative_fmin_report = .false.
-      end if
-
     else
 
       errval = 1
@@ -418,14 +400,6 @@ subroutine read_inputs(errval, errmsg)
       read(iunit, iostat=iostat1, nml=simplex_options)
       call namelist_check('simplex_options', iostat1, 'warn', errval, errmsg)
       if (errval /= 0) return
-      ds_options%tol = simplex_tol
-      ds_options%maxit = simplex_maxit
-      ds_options%write_designs = write_designs
-      if (.not. match_foils) then
-        ds_options%relative_fmin_report = .true.
-      else
-        ds_options%relative_fmin_report = .false.
-      end if
 
     else
 
@@ -459,7 +433,7 @@ subroutine read_inputs(errval, errmsg)
   xpref1 = 1.d0
   xpref2 = 1.d0
 
-! Read xfoil options and put them into derived types
+! Read xfoil options
 
   rewind(iunit)
   read(iunit, iostat=iostat1, nml=xfoil_run_options)
@@ -469,25 +443,6 @@ subroutine read_inputs(errval, errmsg)
   read(iunit, iostat=iostat1, nml=xfoil_paneling_options)
   call namelist_check('xfoil_paneling_options', iostat1, 'warn', errval, errmsg)
   if (errval /= 0) return
-
-  xfoil_options%ncrit = ncrit
-  xfoil_options%xtript = xtript
-  xfoil_options%xtripb = xtripb
-  xfoil_options%viscous_mode = viscous_mode
-  xfoil_options%silent_mode = silent_mode
-  xfoil_options%maxit = bl_maxit
-  xfoil_options%vaccel = vaccel
-  xfoil_options%fix_unconverged = fix_unconverged
-  xfoil_options%reinitialize = reinitialize
-
-  xfoil_geom_options%npan = npan
-  xfoil_geom_options%cvpar = cvpar
-  xfoil_geom_options%cterat = cterat
-  xfoil_geom_options%ctrrat = ctrrat
-  xfoil_geom_options%xsref1 = xsref1
-  xfoil_geom_options%xsref2 = xsref2
-  xfoil_geom_options%xpref1 = xpref1
-  xfoil_geom_options%xpref2 = xpref2
 
 ! Option to match seed airfoil to another instead of aerodynamic optimization
 
@@ -595,10 +550,10 @@ subroutine read_inputs(errval, errmsg)
 !     Particle swarm namelist
 
       write(*,'(A)') " &particle_swarm_options"
-      write(*,*) " pso_pop = ", pso_options%pop
-      write(*,*) " pso_tol = ", pso_options%tol
-      write(*,*) " pso_maxit = ", pso_options%maxit
-      write(*,*) " pso_convergence_profile = ", pso_options%convergence_profile
+      write(*,*) " pso_pop = ", pso_pop
+      write(*,*) " pso_tol = ", pso_tol
+      write(*,*) " pso_maxit = ", pso_maxit
+      write(*,*) " pso_convergence_profile = ", pso_convergence_profile
       write(*,'(A)') " /"
       write(*,*)
 
@@ -607,20 +562,17 @@ subroutine read_inputs(errval, errmsg)
 !     Genetic algorithm options
 
       write(*,'(A)') " &genetic_algorithm_options"
-      write(*,*) " ga_pop = ", ga_options%pop
-      write(*,*) " ga_tol = ", ga_options%tol
-      write(*,*) " ga_maxit = ", ga_options%maxit
-      write(*,*) " parents_selection_method = ",                               &
-                 ga_options%parents_selection_method
-      write(*,*) " parent_fraction = ", ga_options%parent_fraction 
-      write(*,*) " roulette_selection_pressure = ",                            &
-                 ga_options%roulette_selection_pressure
-      write(*,*) " tournament_fraction = " , ga_options%tournament_fraction
-      write(*,*) " crossover_range_factor = ", ga_options%crossover_range_factor
-      write(*,*) " mutant_probability = ", ga_options%mutant_probability
-      write(*,*) " chromosome_mutation_rate = ",                               &
-                 ga_options%chromosome_mutation_rate
-      write(*,*) " mutation_range_factor = ", ga_options%mutation_range_factor
+      write(*,*) " ga_pop = ", ga_pop
+      write(*,*) " ga_tol = ", ga_tol
+      write(*,*) " ga_maxit = ", ga_maxit
+      write(*,*) " parents_selection_method = ", parents_selection_method
+      write(*,*) " parent_fraction = ", parent_fraction
+      write(*,*) " roulette_selection_pressure = ", roulette_selection_pressure
+      write(*,*) " tournament_fraction = " , tournament_fraction
+      write(*,*) " crossover_range_factor = ", crossover_range_factor
+      write(*,*) " mutant_probability = ", mutant_probability
+      write(*,*) " chromosome_mutation_rate = ", chromosome_mutation_rate
+      write(*,*) " mutation_range_factor = ", mutation_range_factor
       write(*,'(A)') " /"
       write(*,*)
 
@@ -636,8 +588,8 @@ subroutine read_inputs(errval, errmsg)
 !     Simplex search namelist
 
       write(*,'(A)') " &simplex_options"
-      write(*,*) " simplex_tol = ", ds_options%tol
-      write(*,*) " simplex_maxit = ", ds_options%maxit
+      write(*,*) " simplex_tol = ", simplex_tol
+      write(*,*) " simplex_maxit = ", simplex_maxit
       write(*,'(A)') " /"
       write(*,*)
 
@@ -648,29 +600,29 @@ subroutine read_inputs(errval, errmsg)
 ! Xfoil run options namelist
 
   write(*,'(A)') " &xfoil_run_options"
-  write(*,*) " ncrit = ", xfoil_options%ncrit
-  write(*,*) " xtript = ", xfoil_options%xtript
-  write(*,*) " xtripb = ", xfoil_options%xtripb
-  write(*,*) " viscous_mode = ", xfoil_options%viscous_mode
-  write(*,*) " silent_mode = ", xfoil_options%silent_mode
-  write(*,*) " bl_maxit = ", xfoil_options%maxit
-  write(*,*) " vaccel = ", xfoil_options%vaccel
-  write(*,*) " fix_unconverged = ", xfoil_options%fix_unconverged
-  write(*,*) " reinitialize = ", xfoil_options%reinitialize
+  write(*,*) " ncrit = ", ncrit
+  write(*,*) " xtript = ", xtript
+  write(*,*) " xtripb = ", xtripb
+  write(*,*) " viscous_mode = ", viscous_mode
+  write(*,*) " silent_mode = ", silent_mode
+  write(*,*) " bl_maxit = ", maxit
+  write(*,*) " vaccel = ", vaccel
+  write(*,*) " fix_unconverged = ", fix_unconverged
+  write(*,*) " reinitialize = ", reinitialize
   write(*,'(A)') " /"
   write(*,*)
 
 ! Xfoil paneling options namelist
 
   write(*,'(A)') " &xfoil_paneling_options"
-  write(*,*) " npan = ", xfoil_geom_options%npan
-  write(*,*) " cvpar = ", xfoil_geom_options%cvpar
-  write(*,*) " cterat = ", xfoil_geom_options%cterat
-  write(*,*) " ctrrat = ", xfoil_geom_options%ctrrat
-  write(*,*) " xsref1 = ", xfoil_geom_options%xsref1
-  write(*,*) " xsref2 = ", xfoil_geom_options%xsref2
-  write(*,*) " xpref1 = ", xfoil_geom_options%xpref1
-  write(*,*) " xpref2 = ", xfoil_geom_options%xpref2
+  write(*,*) " npan = ", npan
+  write(*,*) " cvpar = ", cvpar
+  write(*,*) " cterat = ", cterat
+  write(*,*) " ctrrat = ", ctrrat
+  write(*,*) " xsref1 = ", xsref1
+  write(*,*) " xsref2 = ", xsref2
+  write(*,*) " xpref1 = ", xpref1
+  write(*,*) " xpref2 = ", xpref2
   write(*,'(A)') " /"
   write(*,*)
 
@@ -686,105 +638,16 @@ subroutine read_inputs(errval, errmsg)
 
 ! Optimization settings
 
-  if (trim(seed_airfoil) /= 'from_file' .and.                                  &
-      trim(seed_airfoil) /= 'four_digit') then
-    errval = 1
-    errmsg = "seed_airfoil must be 'from_file' or 'four_digit'."
-    return
-  end if
-  if (trim(shape_functions) /= 'hicks-henne' .and.                             &
-      trim(shape_functions) /= 'naca') then
-    errval = 1
-    errmsg = "shape_functions must be 'hicks-henne' or 'naca'."
-    return
-  end if
-  if (nfunctions_top < 1) then
-    errval = 1
-    errmsg = "nfunctions_top must be > 0."
-    return
-  end if
-  if (nfunctions_bot < 1) then
-    errval = 1
-    errmsg = "nfunctions_bot must be > 0."
-    return
-  end if
-  if (initial_perturb <= 0.d0) then
-    errval = 1
-    errmsg = "initial_perturb must be > 0."
-    return
-  end if
-  if (min_bump_width <= 0.d0) then
-    errval = 1
-    errmsg = "min_bump_width must be > 0."
-    return
-  end if
+  call check_optimization_settings(optimization_settings, errval, errmsg)
+  if (errval /= 0) return
 
 ! Operating points
 
-  if (noppoint < 1) then
-    errval = 1
-    errmsg = "noppoint must be > 0."
-    return
-  end if
-  if ((use_flap) .and. (x_flap <= 0.0)) then
-    errval = 1
-    errmsg = "x_flap must be > 0."
-    return
-  end if
-  if ((use_flap) .and. (x_flap >= 1.0)) then
-    errval = 1
-    errmsg = "x_flap must be < 1."
-    return
-  end if
+  call check_operating_points_settings(operating_points_settings,              &
+                                       max_op_points, errval, errmsg)
+  if (errval /= 0) return
 
-  do i = 1, noppoint
-    if (trim(op_mode(i)) /= 'spec-cl' .and. trim(op_mode(i)) /= 'spec-al') then
-      errval = 1
-      errmsg = "op_mode must be 'spec-al' or 'spec-cl'."
-      return
-    end if
-    if (reynolds(i) <= 0.d0) then
-      errval = 1
-      errmsg = "reynolds must be > 0."
-      return
-    end if
-    if (mach(i) < 0.d0) then
-      errval = 1
-      errmsg = "mach must be >= 0."
-      return
-    end if
-    if (trim(flap_selection(i)) /= 'specify' .and.                             &
-        trim(flap_selection(i)) /= 'optimize') then
-      errval = 1
-      errmsg = "flap_selection must be 'specify' or 'optimize'."
-      return
-    end if
-    if (flap_degrees(i) < -90.d0) then
-      errval = 1
-      errmsg = "flap_degrees must be > -90."
-      return
-    end if
-    if (flap_degrees(i) > 90.d0) then
-      errval = 1
-      errmsg = "flap_degrees must be < 90."
-      return
-    end if
-    if (weighting(i) <= 0.d0) then
-      errval = 1
-      errmsg = "weighting must be > 0."
-      return
-    end if
-    if (trim(optimization_type(i)) /= 'min-drag' .and.                         &
-        trim(optimization_type(i)) /= 'max-glide' .and.                        &
-        trim(optimization_type(i)) /= 'min-sink' .and.                         &
-        trim(optimization_type(i)) /= 'max-lift') then
-      errval = 1 
-      errmsg = "optimization_type must be 'min-drag', 'max-glide', "//&
-               "min-sink', or 'max-lift'."
-      return
-    end if
-  end do
-
+!FIXME: put the rest of these in subroutines too
 ! Constraints
 
   if (trim(seed_violation_handling) /= 'stop' .and.                            &
@@ -1058,6 +921,130 @@ subroutine read_inputs(errval, errmsg)
     return
   end if
 
+! Populate optimization_settings derived type
+
+  call convert_char_to_c(search_type, 16, optimization_settings%search_type)
+  call convert_char_to_c(global_search, 17, optimization_settings%global_search)
+  call convert_char_to_c(local_search, 7, optimization_settings%local_search)
+  call convert_char_to_c(seed_airfoil, 10, optimization_settings%seed_airfoil)
+  call convert_char_to_c(airfoil_file, 80, optimization_settings%airfoil_file)
+  call convert_char_to_c(naca_digits, 4, optimization_settings%naca_digits)
+  call convert_char_to_c(shape_functions, 11,                                  &
+                         optimization_settings%shape_functions)
+  optimization_settings%nfunctions_top = nfunctions_top
+  optimization_settings%nfunctions_bot = nfunctions_bot
+  optimization_settings%initial_perturb = initial_perturb
+  optimization_settings%min_bump_width = min_bump_width
+  optimization_settings%restart = restart
+  optimization_settings%restart_write_freq = restart_write_freq
+  optimization_settings%write_designs = write_designs
+
+! Populate operating_points_settings derived type
+
+  operating_points_settings%noppoint = noppoint
+  operating_points_settings%use_flap = use_flap
+  operating_points_settings%x_flap = x_flap
+  operating_points_settings%y_flap = y_fla
+  do i = 1, max_op_points
+    call convert_char_to_c(op_mode(i), len(op_mode(i)),                        &
+                           operating_points_settings%op_mode(:,i))
+    call convert_char_to_c(optimization_type(i), len(optimization_type(i)),    &
+                           operating_points_settings%optimization_type(:,i))
+  end do
+  operating_points_settings%op_point = op_point
+  operating_points_settings%reynolds = reynolds
+  operating_points_settings%mach = mach
+  do i = 1, max_op_points
+    call convert_char_to_c(flap_selection(i), len(flap_selection(i)),          &
+                           operating_points_settings%flap_selection(:,i))
+  end do
+  operating_points_settings%flap_degrees = flap_degrees
+  operating_points_settings%weighting = weighting 
+
+! Populate constraints_settings derived type
+
+  call convert_char_to_c(seed_violation_handling, len(seed_violation_handling),&
+                         constraints_settings%seed_violation_handling)
+  constraints_settings%min_thickness = min_thickness
+  constraints_settings%max_thickness = max_thickness
+  constraints_settings%min_te_angle = min_te_angle
+  constraints_settings%check_curvature = check_curvature
+  constraints_settings%max_curv_reverse = max_curv_reverse
+  constraints_settings%curv_threshold = curv_threshold
+  constraints_settings%max_flap_degrees = max_flap_degrees
+  constraints_settings%min_flap_degrees = min_flap_degrees
+  do i = 1, max_op_points
+    call convert_char_to_c(moment_constraint_type(i),                          &
+                           len(moment_constraint_type(i)),                     &
+                           constraints_settings%moment_constraint_type(:,i))
+  end do
+  constraints_settings%min_moment = min_moment
+
+! Populate initialization_settings derived type
+
+  initialization_settings%feasible_init = feasible_init
+  initialization_settings%feasible_limit = feasible_limit
+  initialization_settings%feasible_init_attempts = feasible_init_attempts
+
+! Populate particle_swarm_settings derived type
+
+  particle_swarm_settings%pso_pop = pso_pop
+  particle_swarm_settings%pso_tol = pso_tol
+  particle_swarm_settings%pso_maxit = pso_maxit
+  call convert_char_to_c(pso_convergence_profile, len(pso_convergence_profile),&
+                         particle_swarm_settings%pso_convergence_profile)
+  
+! Populate genetic_algorithm_settings derived type
+
+  genetic_algorithm_settings%ga_pop = ga_pop
+  genetic_algorithm_settings%ga_tol = ga_tol
+  genetic_algorithm_settings%ga_maxit = ga_maxit
+  call convert_char_to_c(parents_selection_method,                             &
+                         len(parents_selection_method),                        &
+                         genetic_algorithm_settings%parents_selection_method)
+  genetic_algorithm_settings%parent_fraction = parent_fraction
+  genetic_algorithm_settings%roulette_selection_pressure =                     &
+                                                     roulette_selection_pressure
+  genetic_algorithm_settings%tournament_fraction = tournament_fraction
+  genetic_algorithm_settings%crossover_range_factor = crossover_range_factor
+  genetic_algorithm_settings%mutant_probability = mutant_probability
+  genetic_algorithm_settings%chromosome_mutation_rate = chromosome_mutation_rate
+  genetic_algorithm_settings%mutant_range_factor = mutant_range_factor
+  
+! Populate simplex_settings derived type
+
+  simplex_settings%simplex_tol = simplex_tol
+  simplex_settings%simplex_maxit = simplex_maxit
+
+! Populate xfoil_settings derived type
+
+  xfoil_settings%ncrit = ncrit
+  xfoil_settings%xtript = xtript
+  xfoil_settings%xtripb = xtripb
+  xfoil_settings%viscous_mode = viscous_mode
+  xfoil_settings%silent_mode = silent_mode
+  xfoil_settings%bl_maxit = bl_maxit
+  xfoil_settings%vaccel = vaccel
+  xfoil_settings%fix_unconverged = fix_unconverged
+  xfoil_settings%reinitialize = reinitialize
+  
+! Populate xfoil_paneling_settings derived type
+
+  xfoil_paneling_settings%npan = npan
+  xfoil_paneling_settings%cvpar = cvpar
+  xfoil_paneling_settings%cterat = cterat
+  xfoil_paneling_settings%ctrrat = ctrrat
+  xfoil_paneling_settings%xsref1 = xsref1
+  xfoil_paneling_settings%xsref2 = xsref2
+  xfoil_paneling_settings%xpref1 = xpref1
+  xfoil_paneling_settings%xpref2 = xpref2
+
+! Populate matchfoil_settings derived type
+
+  matchfoil_settings%match_foils = match_foils
+  call convert_char_to_c(matchfoil_file, len(matchfoil_file),                  &
+                         matchfoil_settings%matchfoil_file)
+
 end subroutine read_inputs
 
 !=============================================================================80
@@ -1065,21 +1052,46 @@ end subroutine read_inputs
 ! Subroutine to read inputs from namelist file - for xfoil_only
 !
 !=============================================================================80
-subroutine read_inputs_xfoil_only(input_file, airfoil_file, errval, errmsg)
+subroutine read_inputs_xfoil_only(input_file, airfoil_file,                    &
+                                  operating_points_settings, xfoil_settings,   &
+                                  xfoil_paneling_settings, errval, errmsg)
 
-  use airfoil_evaluation, only : noppoint, op_mode, op_point, reynolds, mach,  &
-                                 use_flap, x_flap, y_flap, flap_degrees,       &
-                                 xfoil_options, xfoil_geom_options
- 
+  use types, only : operating_points_settings_type, xfoil_settings_type,       &
+                    xfoil_paneling_settings_type
+
   character(*), intent(in) :: input_file
   character(80), intent(out) :: airfoil_file
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
 
-  logical :: viscous_mode, silent_mode, fix_unconverged, reinitialize
-  integer :: bl_maxit, npan
-  double precision :: ncrit, xtript, xtripb, vaccel
+! Derived types to group settings
+
+  type(operating_points_settings_type), intent(out) :: operating_points_settings
+  type(xfoil_settings_type), intent(out) :: xfoil_settings
+  type(xfoil_paneling_settings_type), intent(out) :: xfoil_paneling_settings
+
+! Operating points
+
+  integer :: noppoint
+  logical(kind=C_BOOL) :: use_flap
+  double precision :: x_flap, y_flap
+  character(7), dimension(max_op_points) :: op_mode
+  double precision, dimension(max_op_points) :: op_point, reynolds, mach
+  double precision, dimension(max_op_points) :: flap_degrees
+
+! Xfoil run options
+
+  double precision :: ncrit, xtript, xtripb
+  logical(kind=C_BOOL) :: viscous_mode, silent_mode
+  integer :: bl_maxit
+  double precision :: vaccel
+  logical(kind=C_BOOL) :: fix_unconverged, reinitialize
+
+! Xfoil paneling options
+
+  integer :: npan
   double precision :: cvpar, cterat, ctrrat, xsref1, xsref2, xpref1, xpref2
+
   integer :: i, iunit, ioerr, iostat1
   character(30) :: text
 
@@ -1122,7 +1134,7 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file, errval, errmsg)
   mach(:) = 0.d0
   flap_degrees = 0.d0
 
-! Read operating conditions and constraints
+! Read operating conditions
 
   read(iunit, iostat=iostat1, nml=operating_conditions)
   call namelist_check('operating_conditions', iostat1, 'stop', errval, errmsg)
@@ -1130,52 +1142,35 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file, errval, errmsg)
 
 ! Set default xfoil aerodynamics and paneling options
 
-  xfoil_options%ncrit = 9.d0
-  xfoil_options%xtript = 1.d0
-  xfoil_options%xtripb = 1.d0
-  xfoil_options%viscous_mode = .true.
-  xfoil_options%silent_mode = .true.
-  xfoil_options%maxit = 100
-  xfoil_options%vaccel = 0.01d0
-  xfoil_options%fix_unconverged = .true.
-  xfoil_options%reinitialize = .true.
+  ncrit = 9.d0
+  xtript = 1.d0
+  xtripb = 1.d0
+  viscous_mode = .true.
+  silent_mode = .true.
+  bl_maxit = 100
+  vaccel = 0.01d0
+  fix_unconverged = .true.
+  reinitialize = .true.
 
-  xfoil_geom_options%npan = 160
-  xfoil_geom_options%cvpar = 1.d0
-  xfoil_geom_options%cterat = 0.15d0
-  xfoil_geom_options%ctrrat = 0.2d0
-  xfoil_geom_options%xsref1 = 1.d0
-  xfoil_geom_options%xsref2 = 1.d0
-  xfoil_geom_options%xpref1 = 1.d0
-  xfoil_geom_options%xpref2 = 1.d0
+  npan = 160
+  cvpar = 1.d0
+  cterat = 0.15d0
+  ctrrat = 0.2d0
+  xsref1 = 1.d0
+  xsref2 = 1.d0
+  xpref1 = 1.d0
+  xpref2 = 1.d0
 
-! Read xfoil options and put them into derived types
+! Read xfoil options
 
+  rewind(iunit)
   read(iunit, iostat=iostat1, nml=xfoil_run_options)
   call namelist_check('xfoil_run_options', iostat1, 'warn', errval, errmsg)
   if (errval /= 0) return
+  rewind(iunit)
   read(iunit, iostat=iostat1, nml=xfoil_paneling_options)
   call namelist_check('xfoil_paneling_options', iostat1, 'warn', errval, errmsg)
   if (errval /= 0) return
-
-  xfoil_options%ncrit = ncrit
-  xfoil_options%xtript = xtript
-  xfoil_options%xtripb = xtripb
-  xfoil_options%viscous_mode = viscous_mode
-  xfoil_options%silent_mode = silent_mode
-  xfoil_options%maxit = bl_maxit
-  xfoil_options%vaccel = vaccel
-  xfoil_options%fix_unconverged = fix_unconverged
-  xfoil_options%reinitialize = reinitialize
-
-  xfoil_geom_options%npan = npan
-  xfoil_geom_options%cvpar = cvpar
-  xfoil_geom_options%cterat = cterat
-  xfoil_geom_options%ctrrat = ctrrat
-  xfoil_geom_options%xsref1 = xsref1
-  xfoil_geom_options%xsref2 = xsref2
-  xfoil_geom_options%xpref1 = xpref1
-  xfoil_geom_options%xpref2 = xpref2
 
 ! Close the input file
 
@@ -1201,6 +1196,7 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file, errval, errmsg)
   write(*,*) " use_flap = ", use_flap
   write(*,*) " x_flap = ", x_flap
   write(*,*) " y_flap = ", y_flap
+  write(*,*)
   do i = 1, noppoint
     write(text,*) i
     text = adjustl(text)
@@ -1209,6 +1205,7 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file, errval, errmsg)
     write(*,'(A,es17.8)') "  reynolds("//trim(text)//") = ", reynolds(i)
     write(*,*) " mach("//trim(text)//") = ", mach(i)
     write(*,*) " flap_degrees("//trim(text)//") = ", flap_degrees(i)
+    if (i < noppoint) write(*,*)
   end do
   write(*,'(A)') " /"
   write(*,*)
@@ -1216,33 +1213,243 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file, errval, errmsg)
 ! Xfoil run options namelist
 
   write(*,'(A)') " &xfoil_run_options"
-  write(*,*) " ncrit = ", xfoil_options%ncrit
-  write(*,*) " xtript = ", xfoil_options%xtript
-  write(*,*) " xtripb = ", xfoil_options%xtripb
-  write(*,*) " viscous_mode = ", xfoil_options%viscous_mode
-  write(*,*) " silent_mode = ", xfoil_options%silent_mode
-  write(*,*) " bl_maxit = ", xfoil_options%maxit
-  write(*,*) " vaccel = ", xfoil_options%vaccel
-  write(*,*) " fix_unconverged = ", xfoil_options%fix_unconverged
-  write(*,*) " reinitialize = ", xfoil_options%reinitialize
+  write(*,*) " ncrit = ", ncrit
+  write(*,*) " xtript = ", xtript
+  write(*,*) " xtripb = ", xtripb
+  write(*,*) " viscous_mode = ", viscous_mode
+  write(*,*) " silent_mode = ", silent_mode
+  write(*,*) " bl_maxit = ", maxit
+  write(*,*) " vaccel = ", vaccel
+  write(*,*) " fix_unconverged = ", fix_unconverged
+  write(*,*) " reinitialize = ", reinitialize
   write(*,'(A)') " /"
   write(*,*)
 
 ! Xfoil paneling options namelist
 
   write(*,'(A)') " &xfoil_paneling_options"
-  write(*,*) " npan = ", xfoil_geom_options%npan
-  write(*,*) " cvpar = ", xfoil_geom_options%cvpar
-  write(*,*) " cterat = ", xfoil_geom_options%cterat
-  write(*,*) " ctrrat = ", xfoil_geom_options%ctrrat
-  write(*,*) " xsref1 = ", xfoil_geom_options%xsref1
-  write(*,*) " xsref2 = ", xfoil_geom_options%xsref2
-  write(*,*) " xpref1 = ", xfoil_geom_options%xpref1
-  write(*,*) " xpref2 = ", xfoil_geom_options%xpref2
+  write(*,*) " npan = ", npan
+  write(*,*) " cvpar = ", cvpar
+  write(*,*) " cterat = ", cterat
+  write(*,*) " ctrrat = ", ctrrat
+  write(*,*) " xsref1 = ", xsref1
+  write(*,*) " xsref2 = ", xsref2
+  write(*,*) " xpref1 = ", xpref1
+  write(*,*) " xpref2 = ", xpref2
   write(*,'(A)') " /"
   write(*,*)
 
+! Populate operating_points_settings derived type
+
+  operating_points_settings%noppoint = noppoint
+  operating_points_settings%use_flap = use_flap
+  operating_points_settings%x_flap = x_flap
+  operating_points_settings%y_flap = y_fla
+  do i = 1, max_op_points
+    call convert_char_to_c(op_mode(i), len(op_mode(i)),                        &
+                           operating_points_settings%op_mode(:,i))
+  end do
+  operating_points_settings%op_point = op_point
+  operating_points_settings%reynolds = reynolds
+  operating_points_settings%mach = mach
+  operating_points_settings%flap_degrees = flap_degrees
+
+! Populate xfoil_settings derived type
+
+  xfoil_settings%ncrit = ncrit
+  xfoil_settings%xtript = xtript
+  xfoil_settings%xtripb = xtripb
+  xfoil_settings%viscous_mode = viscous_mode
+  xfoil_settings%silent_mode = silent_mode
+  xfoil_settings%bl_maxit = bl_maxit
+  xfoil_settings%vaccel = vaccel
+  xfoil_settings%fix_unconverged = fix_unconverged
+  xfoil_settings%reinitialize = reinitialize
+  
+! Populate xfoil_paneling_settings derived type
+
+  xfoil_paneling_settings%npan = npan
+  xfoil_paneling_settings%cvpar = cvpar
+  xfoil_paneling_settings%cterat = cterat
+  xfoil_paneling_settings%ctrrat = ctrrat
+  xfoil_paneling_settings%xsref1 = xsref1
+  xfoil_paneling_settings%xsref2 = xsref2
+  xfoil_paneling_settings%xpref1 = xpref1
+  xfoil_paneling_settings%xpref2 = xpref2
+
 end subroutine read_inputs_xfoil_only
+
+!=============================================================================80
+!
+! Checks optimization_settings type for valid entries
+!
+!=============================================================================80
+subroutine check_optimization_settings(optimization_settings, errval, errmsg)
+
+  use types, only : optimization_settings_type
+  use util,  only : convert_char_to_fortran
+
+  type(optimization_settings_type), intent(in) :: optimization_settings
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  character(10) :: seed_airfoil
+  character(11) :: shape_functions
+
+  errval = 0
+  errmsg = ''
+
+! Convert char arrays to fortran strings
+
+  call convert_char_to_fortran(optimization_settings%seed_airfoil,             &
+                               size(optimization_settings%seed_airfoil,1),     &
+                               seed_airfoil)
+  call convert_char_to_fortran(optimization_settings%shape_functions,          &
+                               size(optimization_settings%shape_functions,1),  &
+                               shape_functions)
+
+  if (trim(seed_airfoil) /= 'from_file' .and.                                  &
+      trim(seed_airfoil) /= 'four_digit') then
+    errval = 1
+    errmsg = "seed_airfoil must be 'from_file' or 'four_digit'."
+    return
+  end if
+  if (trim(shape_functions) /= 'hicks-henne' .and.                             &
+      trim(shape_functions) /= 'naca') then
+    errval = 1
+    errmsg = "shape_functions must be 'hicks-henne' or 'naca'."
+    return
+  end if
+  if (optimization_settings%nfunctions_top < 1) then
+    errval = 1
+    errmsg = "nfunctions_top must be > 0."
+    return
+  end if
+  if (optimization_settings%nfunctions_bot < 1) then
+    errval = 1
+    errmsg = "nfunctions_bot must be > 0."
+    return
+  end if
+  if (optimization_settings%initial_perturb <= 0.d0) then
+    errval = 1
+    errmsg = "initial_perturb must be > 0."
+    return
+  end if
+  if (optimization_settings%min_bump_width <= 0.d0) then
+    errval = 1
+    errmsg = "min_bump_width must be > 0."
+    return
+  end if
+
+end subroutine check_optimization_settings
+
+!=============================================================================80
+!
+! Checks operating_points_settings type for valid entries
+!
+!=============================================================================80
+subroutine check_operating_points_settings(operating_points_settings,          &
+                                           max_op_points, errval, errmsg)
+
+  use types, only : operating_points_settings_type
+  use util,  only : convert_char_to_fortran
+
+  type(operating_points_settings), intent(in) :: operating_points_settings
+  integer, intent(in) :: max_op_points
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  integer :: i
+  character(7), dimension(max_op_points) :: op_mode
+  character(9), dimension(max_op_points) :: optimization_type
+  character(8), dimension(max_op_points) :: flap_selection
+
+! Convert char arrays to fortran strings
+
+  do i = 1, max_op_points
+    call convert_char_to_fortran(operating_points_settings%op_mode(:,i),       &
+                                 size(operating_points_settings%op_mode,1),    &
+                                 op_mode)
+    call convert_char_to_fortran(                                              &
+                           operating_points_settings%optimization_type(:,i),   &
+                           size(operating_points_settings%optimization_type,1),&
+                           optimization_type)
+    call convert_char_to_fortran(                                              &
+                              operating_points_settings%flap_selection(:,i),   &
+                              size(operating_points_settings%flap_selection,1),&
+                              flap_selection)
+  end do
+
+  errval = 0
+  errmsg = ''
+
+  if (operating_points_settings%noppoint < 1) then
+    errval = 1
+    errmsg = "noppoint must be > 0."
+    return
+  end if
+  if ((operating_points_settings%use_flap) .and.                               &
+      (operating_points_settings%x_flap <= 0.0)) then
+    errval = 1
+    errmsg = "x_flap must be > 0."
+    return
+  end if
+  if ((operating_points_settings%use_flap) .and.                               &
+      (operating_points_settings%x_flap >= 1.0)) then
+    errval = 1
+    errmsg = "x_flap must be < 1."
+    return
+  end if
+
+  do i = 1, operating_points_settings%noppoint
+    if (trim(op_mode(i)) /= 'spec-cl' .and. trim(op_mode(i)) /= 'spec-al') then
+      errval = 1
+      errmsg = "op_mode must be 'spec-al' or 'spec-cl'."
+      return
+    end if
+    if (operating_points_settings%reynolds(i) <= 0.d0) then
+      errval = 1
+      errmsg = "reynolds must be > 0."
+      return
+    end if
+    if (operating_points_settings%mach(i) < 0.d0) then
+      errval = 1
+      errmsg = "mach must be >= 0."
+      return
+    end if
+    if (trim(flap_selection(i)) /= 'specify' .and.                             &
+        trim(flap_selection(i)) /= 'optimize') then
+      errval = 1
+      errmsg = "flap_selection must be 'specify' or 'optimize'."
+      return
+    end if
+    if (operating_points_settings%flap_degrees(i) < -90.d0) then
+      errval = 1
+      errmsg = "flap_degrees must be > -90."
+      return
+    end if
+    if (operating_points_settings%flap_degrees(i) > 90.d0) then
+      errval = 1
+      errmsg = "flap_degrees must be < 90."
+      return
+    end if
+    if (operating_points_settings%weighting(i) <= 0.d0) then
+      errval = 1
+      errmsg = "weighting must be > 0."
+      return
+    end if
+    if (trim(optimization_type(i)) /= 'min-drag' .and.                         &
+        trim(optimization_type(i)) /= 'max-glide' .and.                        &
+        trim(optimization_type(i)) /= 'min-sink' .and.                         &
+        trim(optimization_type(i)) /= 'max-lift') then
+      errval = 1 
+      errmsg = "optimization_type must be 'min-drag', 'max-glide', "//&
+               "min-sink', or 'max-lift'."
+      return
+    end if
+  end do
+
+end subroutine check_operating_points_settings
 
 !=============================================================================80
 !
@@ -1282,25 +1489,5 @@ subroutine namelist_check(nmlname, errcode, action_missing_nml, errval, errmsg)
   end if
 
 end subroutine namelist_check
-
-!=============================================================================80
-!
-! Reads command line arguments for input file name and output file prefix
-!
-!=============================================================================80
-subroutine read_clo(input_file, output_prefix)
-
-  character(*), intent(inout) :: input_file, output_prefix
-
-! Read supplied names
-
-  if (iargc() >= 1) then
-    call getarg(1, input_file)
-  end if
-  if (iargc() >= 2) then
-    call getarg(2, output_prefix)
-  end if
-
-end subroutine read_clo
 
 end module input_output
