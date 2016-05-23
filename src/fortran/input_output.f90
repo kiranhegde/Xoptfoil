@@ -94,7 +94,9 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   double precision :: min_thickness, max_thickness, min_te_angle
   logical(kind=C_BOOL) :: check_curvature
   integer :: max_curv_reverse
-  double precision :: curv_threshold, max_flap_degrees, min_flap_degrees
+  double precision :: curv_threshold
+  logical(kind=C_BOOL) :: symmetrical
+  double precision :: max_flap_degrees, min_flap_degrees
   character(8), dimension(max_op_points) :: moment_constraint_type
   double precision, dimension(max_op_points) :: min_moment
 
@@ -213,16 +215,30 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   call namelist_check('optimization_options', iostat1, 'warn', errval, errmsg)
   if (errval /= 0) return
 
-! Error checking and setting search algorithm options
+! Populate optimization_settings derived type
 
-  if (trim(search_type) /= 'global_and_local' .and. trim(search_type) /=       &
-      'global' .and. trim(search_type) /= 'local') then
-    errval = 1
-    errmsg = "search_type must be 'global_and_local', 'global', or 'local.'"
-    return
-  end if
+  call convert_char_to_c(search_type, 16, optimization_settings%search_type)
+  call convert_char_to_c(global_search, 17, optimization_settings%global_search)
+  call convert_char_to_c(local_search, 7, optimization_settings%local_search)
+  call convert_char_to_c(seed_airfoil, 10, optimization_settings%seed_airfoil)
+  call convert_char_to_c(airfoil_file, 80, optimization_settings%airfoil_file)
+  call convert_char_to_c(naca_digits, 4, optimization_settings%naca_digits)
+  call convert_char_to_c(shape_functions, 11,                                  &
+                         optimization_settings%shape_functions)
+  optimization_settings%nfunctions_top = nfunctions_top
+  optimization_settings%nfunctions_bot = nfunctions_bot
+  optimization_settings%initial_perturb = initial_perturb
+  optimization_settings%min_bump_width = min_bump_width
+  optimization_settings%restart = restart
+  optimization_settings%restart_write_freq = restart_write_freq
+  optimization_settings%write_designs = write_designs
 
-! Set defaults for operating conditions and constraints
+! Check optimization_settings for errors
+
+  call check_optimization_settings(optimization_settings, errval, errmsg)
+  if (errval /= 0) return
+
+! Set defaults for operating conditions
 
   noppoint = 1
   use_flap = .false.
@@ -237,6 +253,43 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   flap_degrees(:) = 0.d0
   weighting(:) = 1.d0
 
+! Read operating conditions
+
+  rewind(iunit)
+  read(iunit, iostat=iostat1, nml=operating_conditions)
+  call namelist_check('operating_conditions', iostat1, 'stop', errval, errmsg)
+  if (errval /= 0) return
+
+! Populate operating_points_settings derived type
+
+  operating_points_settings%noppoint = noppoint
+  operating_points_settings%use_flap = use_flap
+  operating_points_settings%x_flap = x_flap
+  operating_points_settings%y_flap = y_flap
+  do i = 1, max_op_points
+    call convert_char_to_c(op_mode(i), len(op_mode(i)),                        &
+                           operating_points_settings%op_mode(:,i))
+    call convert_char_to_c(optimization_type(i), len(optimization_type(i)),    &
+                           operating_points_settings%optimization_type(:,i))
+  end do
+  operating_points_settings%op_point = op_point
+  operating_points_settings%reynolds = reynolds
+  operating_points_settings%mach = mach
+  do i = 1, max_op_points
+    call convert_char_to_c(flap_selection(i), len(flap_selection(i)),          &
+                           operating_points_settings%flap_selection(:,i))
+  end do
+  operating_points_settings%flap_degrees = flap_degrees
+  operating_points_settings%weighting = weighting 
+
+! Operating points
+
+  call check_operating_points_settings(operating_points_settings,              &
+                                       max_op_points, errval, errmsg)
+  if (errval /= 0) return
+
+! Set defaults for constraints
+
   seed_violation_handling = 'stop'
   min_thickness = 0.06d0
   max_thickness = 1000.d0
@@ -250,12 +303,8 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   min_flap_degrees = -5.d0
   max_flap_degrees = 15.d0
 
-! Read operating conditions and constraints
+! Read constraints
 
-  rewind(iunit)
-  read(iunit, iostat=iostat1, nml=operating_conditions)
-  call namelist_check('operating_conditions', iostat1, 'stop', errval, errmsg)
-  if (errval /= 0) return
   rewind(iunit)
   read(iunit, iostat=iostat1, nml=constraints)
   call namelist_check('constraints', iostat1, 'stop', errval, errmsg)
@@ -456,6 +505,90 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
   close(iunit)
 
+! Populate constraints_settings derived type
+
+  call convert_char_to_c(seed_violation_handling, len(seed_violation_handling),&
+                         constraints_settings%seed_violation_handling)
+  constraints_settings%min_thickness = min_thickness
+  constraints_settings%max_thickness = max_thickness
+  constraints_settings%min_te_angle = min_te_angle
+  constraints_settings%check_curvature = check_curvature
+  constraints_settings%max_curv_reverse = max_curv_reverse
+  constraints_settings%curv_threshold = curv_threshold
+  constraints_settings%max_flap_degrees = max_flap_degrees
+  constraints_settings%min_flap_degrees = min_flap_degrees
+  do i = 1, max_op_points
+    call convert_char_to_c(moment_constraint_type(i),                          &
+                           len(moment_constraint_type(i)),                     &
+                           constraints_settings%moment_constraint_type(:,i))
+  end do
+  constraints_settings%min_moment = min_moment
+
+! Populate initialization_settings derived type
+
+  initialization_settings%feasible_init = feasible_init
+  initialization_settings%feasible_limit = feasible_limit
+  initialization_settings%feasible_init_attempts = feasible_init_attempts
+
+! Populate particle_swarm_settings derived type
+
+  particle_swarm_settings%pso_pop = pso_pop
+  particle_swarm_settings%pso_tol = pso_tol
+  particle_swarm_settings%pso_maxit = pso_maxit
+  call convert_char_to_c(pso_convergence_profile, len(pso_convergence_profile),&
+                         particle_swarm_settings%pso_convergence_profile)
+  
+! Populate genetic_algorithm_settings derived type
+
+  genetic_algorithm_settings%ga_pop = ga_pop
+  genetic_algorithm_settings%ga_tol = ga_tol
+  genetic_algorithm_settings%ga_maxit = ga_maxit
+  call convert_char_to_c(parents_selection_method,                             &
+                         len(parents_selection_method),                        &
+                         genetic_algorithm_settings%parents_selection_method)
+  genetic_algorithm_settings%parent_fraction = parent_fraction
+  genetic_algorithm_settings%roulette_selection_pressure =                     &
+                                                     roulette_selection_pressure
+  genetic_algorithm_settings%tournament_fraction = tournament_fraction
+  genetic_algorithm_settings%crossover_range_factor = crossover_range_factor
+  genetic_algorithm_settings%mutant_probability = mutant_probability
+  genetic_algorithm_settings%chromosome_mutation_rate = chromosome_mutation_rate
+  genetic_algorithm_settings%mutant_range_factor = mutant_range_factor
+  
+! Populate simplex_settings derived type
+
+  simplex_settings%simplex_tol = simplex_tol
+  simplex_settings%simplex_maxit = simplex_maxit
+
+! Populate xfoil_settings derived type
+
+  xfoil_settings%ncrit = ncrit
+  xfoil_settings%xtript = xtript
+  xfoil_settings%xtripb = xtripb
+  xfoil_settings%viscous_mode = viscous_mode
+  xfoil_settings%silent_mode = silent_mode
+  xfoil_settings%bl_maxit = bl_maxit
+  xfoil_settings%vaccel = vaccel
+  xfoil_settings%fix_unconverged = fix_unconverged
+  xfoil_settings%reinitialize = reinitialize
+  
+! Populate xfoil_paneling_settings derived type
+
+  xfoil_paneling_settings%npan = npan
+  xfoil_paneling_settings%cvpar = cvpar
+  xfoil_paneling_settings%cterat = cterat
+  xfoil_paneling_settings%ctrrat = ctrrat
+  xfoil_paneling_settings%xsref1 = xsref1
+  xfoil_paneling_settings%xsref2 = xsref2
+  xfoil_paneling_settings%xpref1 = xpref1
+  xfoil_paneling_settings%xpref2 = xpref2
+
+! Populate matchfoil_settings derived type
+
+  matchfoil_settings%match_foils = match_foils
+  call convert_char_to_c(matchfoil_file, len(matchfoil_file),                  &
+                         matchfoil_settings%matchfoil_file)
+
 ! Echo namelist options for checking purposes
 
   write(*,*)
@@ -634,93 +767,16 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   write(*,'(A)') " /"
   write(*,*)
 
-! Check that inputs are reasonable
-
-! Optimization settings
-
-  call check_optimization_settings(optimization_settings, errval, errmsg)
-  if (errval /= 0) return
-
-! Operating points
-
-  call check_operating_points_settings(operating_points_settings,              &
-                                       max_op_points, errval, errmsg)
-  if (errval /= 0) return
-
-!FIXME: put the rest of these in subroutines too
 ! Constraints
 
-  if (trim(seed_violation_handling) /= 'stop' .and.                            &
-      trim(seed_violation_handling) /= 'warn') then
-    errval = 1
-    errmsg = "seed_violation_handling must be 'stop' or 'warn'."
-    return
-  end if
-  if (min_thickness <= 0.d0) then
-    errval = 1
-    errmsg = "min_thickness must be > 0."
-    return
-  end if
-  if (max_thickness <= 0.d0) then
-    errval = 1
-    errmsg = "max_thickness must be > 0."
-    return
-  end if
-  do i = 1, noppoint
-    if (trim(moment_constraint_type(i)) /= 'use_seed' .and.                    &
-        trim(moment_constraint_type(i)) /= 'specify' .and.                     &
-        trim(moment_constraint_type(i)) /= 'none')  then
-      errval = 1
-      errmsg = "moment_constraint_type must be 'use_seed', 'specify', "//&
-               "or 'none'."
-      return
-    end if
-  end do
-  if (min_te_angle <= 0.d0) then
-    errval = 1
-    errmsg = "min_te_angle must be > 0."
-    return
-  end if
-  if (max_curv_reverse < 1) then
-    errval = 1
-    errmsg = "max_curv_reverse must be > 0."
-    return
-  end if
-  if (curv_threshold <= 0.d0) then
-    errval = 1
-    errmsg = "curv_threshold must be > 0."
-    return
-  end if
-  if (symmetrical)                                                             &
-    write(*,*) "Mirroring top half of seed airfoil for symmetrical constraint."
-  if (min_flap_degrees >= max_flap_degrees) then
-    errval = 1
-    errmsg = "min_flap_degrees must be less than max_flap_degrees."
-    return
-  end if
-  if (min_flap_degrees <= -90.d0) then
-    errval = 1
-    errmsg = "min_flap_degrees must be greater than -90."
-    return
-  end if
-  if (max_flap_degrees >= 90.d0) then
-    errval = 1
-    errmsg = "max_flap_degrees must be less than 90."
-    return
-  end if
+  call check_constraints_settings(constraints_settings, max_op_points, errval, &
+                                  errmsg)
+  if (errval /= 0) return
 
 ! Initialization options
     
-  if ((feasible_limit <= 0.d0) .and. feasible_init) then
-    errval = 1
-    errmsg = "feasible_limit must be > 0."
-    return
-  end if
-  if ((feasible_init_attempts < 1) .and. feasible_init) then
-    errval = 1
-    errmsg = "feasible_init_attempts must be > 0."
-    return
-  end if
+  call check_initialization_settings(initialization_settings, errval, errmsg)
+  if (errval /= 0) return
 
 ! Optimizer options
 
@@ -731,92 +787,17 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
 !     Particle swarm options
 
-      if (pso_pop < 1) then
-        errval = 1
-        errmsg = "pso_pop must be > 0."
-        return
-      end if
-      if (pso_tol <= 0.d0) then
-        errval = 1
-        errmsg = "pso_tol must be > 0."
-        return
-      end if
-      if (pso_maxit < 1) then
-        errval = 1
-        errmsg = "pso_maxit must be > 0."
-        return
-      end if
-      if ( (trim(pso_convergence_profile) /= "quick") .and.                    &
-           (trim(pso_convergence_profile) /= "exhaustive") ) then
-        errval = 1
-        errmsg = "pso_convergence_profile must be 'exhaustive' "//&
-                 "or 'quick'."
-        return
-      end if
+      call check_particle_swarm_settings(particle_swarm_settings, errval,      &
+                                         errmsg)
+      if (errval /= 0) return
 
     else if (trim(global_search) == 'genetic_algorithm') then
 
 !     Genetic algorithm options
 
-      if (ga_pop < 1) then
-        errval = 1
-        errmsg = "ga_pop must be > 0."
-        return
-      end if
-      if (ga_tol <= 0.d0) then
-        errval = 1
-        errmsg = "ga_tol must be > 0."
-        return
-      end if
-      if (ga_maxit < 1) then
-        errval = 1
-        errmsg = "ga_maxit must be > 0."
-        return
-      end if
-      if ( (trim(parents_selection_method) /= "roulette") .and.                &
-           (trim(parents_selection_method) /= "tournament") .and.              &
-           (trim(parents_selection_method) /= "random") ) then
-        errval = 1
-        errmsg = "parents_selection_method must be 'roulette', "//&
-                 "'tournament', or 'random'."
-        return
-      end if
-      if ( (parent_fraction <= 0.d0) .or. (parent_fraction > 1.d0) ) then
-        errval = 1 
-        errmsg = "parent_fraction must be > 0 and <= 1."
-        return
-      end if
-      if (roulette_selection_pressure <= 0.d0) then 
-        errval = 1
-        errmsg = "roulette_selection_pressure must be > 0."
-        return
-      end if
-      if ( (tournament_fraction <= 0.d0) .or. (tournament_fraction > 1.d0) )   &
-        then 
-        errval = 1
-        errmsg = "tournament_fraction must be > 0 and <= 1."
-        return
-      end if
-      if (crossover_range_factor < 0.d0) then 
-        errval = 1
-        errmsg = "crossover_range_factor must be >= 0."
-        return
-      end if
-      if ( (mutant_probability < 0.d0) .or. (mutant_probability > 1.d0) ) then 
-        errval = 1
-        errmsg = "mutant_probability must be >= 0 and <= 1."
-        return
-      end if
-      if (chromosome_mutation_rate < 0.d0) then 
-        errval = 1
-        errmsg = "chromosome_mutation_rate must be >= 0."
-        return
-      end if
-      if (mutation_range_factor < 0.d0) then 
-        errval = 1
-        errmsg = "mutation_range_factor must be >= 0."
-        return
-      end if
+      call check_genetic_algorithm_settings(genetic_algorithm_settings, errval,&
+                                            errmsg)
+      if (errval /= 0) return
 
     end if
 
@@ -827,46 +808,15 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
 !   Simplex options
 
-    if (simplex_tol <= 0.d0) then
-      errval = 1
-      errmsg = "simplex_tol must be > 0."
-      return
-    end if
-    if (simplex_maxit < 1) then
-      errval = 1
-      errmsg = "simplex_maxit must be > 0."
-      return
-    end if
+    call check_simplex_settings(simplex_settings, errval, errmsg)
+    if (errval /= 0) return
   
   end if
 
 ! XFoil run options
 
-  if (ncrit < 0.d0) then
-    errval = 1
-    errmsg = "ncrit must be >= 0."
-    return
-  end if
-  if (xtript < 0.d0 .or. xtript > 1.d0) then
-    errval = 1 
-    errmsg = "xtript must be >= 0. and <= 1."
-    return
-  end if
-  if (xtripb < 0.d0 .or. xtripb > 1.d0) then
-    errval = 1 
-    errmsg = "xtripb must be >= 0. and <= 1."
-    return
-  end if
-  if (bl_maxit < 1) then
-    errval = 1
-    errmsg = "bl_maxit must be > 0."
-    return
-  end if
-  if (vaccel < 0.d0) then
-    errval = 1
-    errmsg = "vaccel must be >= 0."
-    return
-  end if 
+  call check_xfoil_settings(xfoil_settings, errval, errmsg)
+  if (errval /= 0) return
 
 ! XFoil paneling options
 
@@ -920,130 +870,6 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
     errmsg = "xpref2 must be <= 1."
     return
   end if
-
-! Populate optimization_settings derived type
-
-  call convert_char_to_c(search_type, 16, optimization_settings%search_type)
-  call convert_char_to_c(global_search, 17, optimization_settings%global_search)
-  call convert_char_to_c(local_search, 7, optimization_settings%local_search)
-  call convert_char_to_c(seed_airfoil, 10, optimization_settings%seed_airfoil)
-  call convert_char_to_c(airfoil_file, 80, optimization_settings%airfoil_file)
-  call convert_char_to_c(naca_digits, 4, optimization_settings%naca_digits)
-  call convert_char_to_c(shape_functions, 11,                                  &
-                         optimization_settings%shape_functions)
-  optimization_settings%nfunctions_top = nfunctions_top
-  optimization_settings%nfunctions_bot = nfunctions_bot
-  optimization_settings%initial_perturb = initial_perturb
-  optimization_settings%min_bump_width = min_bump_width
-  optimization_settings%restart = restart
-  optimization_settings%restart_write_freq = restart_write_freq
-  optimization_settings%write_designs = write_designs
-
-! Populate operating_points_settings derived type
-
-  operating_points_settings%noppoint = noppoint
-  operating_points_settings%use_flap = use_flap
-  operating_points_settings%x_flap = x_flap
-  operating_points_settings%y_flap = y_fla
-  do i = 1, max_op_points
-    call convert_char_to_c(op_mode(i), len(op_mode(i)),                        &
-                           operating_points_settings%op_mode(:,i))
-    call convert_char_to_c(optimization_type(i), len(optimization_type(i)),    &
-                           operating_points_settings%optimization_type(:,i))
-  end do
-  operating_points_settings%op_point = op_point
-  operating_points_settings%reynolds = reynolds
-  operating_points_settings%mach = mach
-  do i = 1, max_op_points
-    call convert_char_to_c(flap_selection(i), len(flap_selection(i)),          &
-                           operating_points_settings%flap_selection(:,i))
-  end do
-  operating_points_settings%flap_degrees = flap_degrees
-  operating_points_settings%weighting = weighting 
-
-! Populate constraints_settings derived type
-
-  call convert_char_to_c(seed_violation_handling, len(seed_violation_handling),&
-                         constraints_settings%seed_violation_handling)
-  constraints_settings%min_thickness = min_thickness
-  constraints_settings%max_thickness = max_thickness
-  constraints_settings%min_te_angle = min_te_angle
-  constraints_settings%check_curvature = check_curvature
-  constraints_settings%max_curv_reverse = max_curv_reverse
-  constraints_settings%curv_threshold = curv_threshold
-  constraints_settings%max_flap_degrees = max_flap_degrees
-  constraints_settings%min_flap_degrees = min_flap_degrees
-  do i = 1, max_op_points
-    call convert_char_to_c(moment_constraint_type(i),                          &
-                           len(moment_constraint_type(i)),                     &
-                           constraints_settings%moment_constraint_type(:,i))
-  end do
-  constraints_settings%min_moment = min_moment
-
-! Populate initialization_settings derived type
-
-  initialization_settings%feasible_init = feasible_init
-  initialization_settings%feasible_limit = feasible_limit
-  initialization_settings%feasible_init_attempts = feasible_init_attempts
-
-! Populate particle_swarm_settings derived type
-
-  particle_swarm_settings%pso_pop = pso_pop
-  particle_swarm_settings%pso_tol = pso_tol
-  particle_swarm_settings%pso_maxit = pso_maxit
-  call convert_char_to_c(pso_convergence_profile, len(pso_convergence_profile),&
-                         particle_swarm_settings%pso_convergence_profile)
-  
-! Populate genetic_algorithm_settings derived type
-
-  genetic_algorithm_settings%ga_pop = ga_pop
-  genetic_algorithm_settings%ga_tol = ga_tol
-  genetic_algorithm_settings%ga_maxit = ga_maxit
-  call convert_char_to_c(parents_selection_method,                             &
-                         len(parents_selection_method),                        &
-                         genetic_algorithm_settings%parents_selection_method)
-  genetic_algorithm_settings%parent_fraction = parent_fraction
-  genetic_algorithm_settings%roulette_selection_pressure =                     &
-                                                     roulette_selection_pressure
-  genetic_algorithm_settings%tournament_fraction = tournament_fraction
-  genetic_algorithm_settings%crossover_range_factor = crossover_range_factor
-  genetic_algorithm_settings%mutant_probability = mutant_probability
-  genetic_algorithm_settings%chromosome_mutation_rate = chromosome_mutation_rate
-  genetic_algorithm_settings%mutant_range_factor = mutant_range_factor
-  
-! Populate simplex_settings derived type
-
-  simplex_settings%simplex_tol = simplex_tol
-  simplex_settings%simplex_maxit = simplex_maxit
-
-! Populate xfoil_settings derived type
-
-  xfoil_settings%ncrit = ncrit
-  xfoil_settings%xtript = xtript
-  xfoil_settings%xtripb = xtripb
-  xfoil_settings%viscous_mode = viscous_mode
-  xfoil_settings%silent_mode = silent_mode
-  xfoil_settings%bl_maxit = bl_maxit
-  xfoil_settings%vaccel = vaccel
-  xfoil_settings%fix_unconverged = fix_unconverged
-  xfoil_settings%reinitialize = reinitialize
-  
-! Populate xfoil_paneling_settings derived type
-
-  xfoil_paneling_settings%npan = npan
-  xfoil_paneling_settings%cvpar = cvpar
-  xfoil_paneling_settings%cterat = cterat
-  xfoil_paneling_settings%ctrrat = ctrrat
-  xfoil_paneling_settings%xsref1 = xsref1
-  xfoil_paneling_settings%xsref2 = xsref2
-  xfoil_paneling_settings%xpref1 = xpref1
-  xfoil_paneling_settings%xpref2 = xpref2
-
-! Populate matchfoil_settings derived type
-
-  matchfoil_settings%match_foils = match_foils
-  call convert_char_to_c(matchfoil_file, len(matchfoil_file),                  &
-                         matchfoil_settings%matchfoil_file)
 
 end subroutine read_inputs
 
@@ -1281,6 +1107,45 @@ end subroutine read_inputs_xfoil_only
 
 !=============================================================================80
 !
+! Prints error and stops or warns for bad namelist read
+!
+!=============================================================================80
+subroutine namelist_check(nmlname, errcode, action_missing_nml, errval, errmsg)
+
+  character(*), intent(in) :: nmlname
+  integer, intent(in) :: errcode
+  character(*), intent(in) :: action_missing_nml
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  errval = 0
+  errmsg = ''
+
+  if (errcode < 0) then
+    write(*,*)
+    if (trim(action_missing_nml) == 'warn') then
+      write(*,'(A)') 'Warning: namelist '//trim(nmlname)//&
+                     ' not found in input file.'
+      write(*,'(A)') 'Using default values.'
+      write(*,*)
+    else
+      errval = 1
+      errmsg = 'namelist '//trim(nmlname)//&
+               ' is required and was not found in input file.'
+      return
+    end if
+  else if (errcode > 0) then
+    errval = 1
+    errmsg = 'unrecognized variable in namelist '//trim(nmlname)//'.'
+    return
+  else
+    continue
+  end if
+
+end subroutine namelist_check
+
+!=============================================================================80
+!
 ! Checks optimization_settings type for valid entries
 !
 !=============================================================================80
@@ -1293,6 +1158,7 @@ subroutine check_optimization_settings(optimization_settings, errval, errmsg)
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
 
+  character(16) :: search_type
   character(10) :: seed_airfoil
   character(11) :: shape_functions
 
@@ -1301,12 +1167,24 @@ subroutine check_optimization_settings(optimization_settings, errval, errmsg)
 
 ! Convert char arrays to fortran strings
 
+  call convert_char_to_fortran(optimization_settings%search_type,              &
+                               size(optimization_settings%search_type,1),      &
+                               search_type)
   call convert_char_to_fortran(optimization_settings%seed_airfoil,             &
                                size(optimization_settings%seed_airfoil,1),     &
                                seed_airfoil)
   call convert_char_to_fortran(optimization_settings%shape_functions,          &
                                size(optimization_settings%shape_functions,1),  &
                                shape_functions)
+
+! Error checking and setting search algorithm options
+
+  if (trim(search_type) /= 'global_and_local' .and. trim(search_type) /=       &
+      'global' .and. trim(search_type) /= 'local') then
+    errval = 1
+    errmsg = "search_type must be 'global_and_local', 'global', or 'local.'"
+    return
+  end if
 
   if (trim(seed_airfoil) /= 'from_file' .and.                                  &
       trim(seed_airfoil) /= 'four_digit') then
@@ -1364,6 +1242,9 @@ subroutine check_operating_points_settings(operating_points_settings,          &
   character(9), dimension(max_op_points) :: optimization_type
   character(8), dimension(max_op_points) :: flap_selection
 
+  errval = 0
+  errmsg = ''
+
 ! Convert char arrays to fortran strings
 
   do i = 1, max_op_points
@@ -1379,9 +1260,6 @@ subroutine check_operating_points_settings(operating_points_settings,          &
                               size(operating_points_settings%flap_selection,1),&
                               flap_selection)
   end do
-
-  errval = 0
-  errmsg = ''
 
   if (operating_points_settings%noppoint < 1) then
     errval = 1
@@ -1453,41 +1331,364 @@ end subroutine check_operating_points_settings
 
 !=============================================================================80
 !
-! Prints error and stops or warns for bad namelist read
+! Checks constraints_settings type for valid entries
 !
 !=============================================================================80
-subroutine namelist_check(nmlname, errcode, action_missing_nml, errval, errmsg)
+subroutine check_constraints_settings(constraints_settings, max_op_points,     &
+                                      errval, errmsg)
 
-  character(*), intent(in) :: nmlname
-  integer, intent(in) :: errcode
-  character(*), intent(in) :: action_missing_nml
+  use types, only : constraints_settings_type
+  use util,  only : convert_char_to_fortran
+
+  type(constraints_settings_type), intent(in) :: constraints_settings
+  integer, intent(in) :: max_op_points
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  integer :: i
+  character(4) :: seed_violation_handling
+  character(8), dimension(max_op_points) :: moment_constraint_type
+
+  errval = 0
+  errmsg = ''
+
+! Convert char arrays to fortran strings
+
+  call convert_char_to_fortran(constraints_settings%seed_violation_handling,   &
+                          size(constraints_settings%seed_violation_handling,1),&
+                          seed_violation_handling)
+  do i = 1, max_op_points
+    call convert_char_to_fortran(                                              &
+                           constraints_settings%moment_constraint_type(:,i),   &
+                           size(constraints_settings%moment_constraint_type,1),&
+                           moment_constraint_type)
+  end do
+
+  if (trim(seed_violation_handling) /= 'stop' .and.                            &
+      trim(seed_violation_handling) /= 'warn') then
+    errval = 1
+    errmsg = "seed_violation_handling must be 'stop' or 'warn'."
+    return
+  end if
+  if (constraints_settings%min_thickness <= 0.d0) then
+    errval = 1
+    errmsg = "min_thickness must be > 0."
+    return
+  end if
+  if (constraints_settings%max_thickness <= 0.d0) then
+    errval = 1
+    errmsg = "max_thickness must be > 0."
+    return
+  end if
+  do i = 1, noppoint
+    if (trim(moment_constraint_type(i)) /= 'use_seed' .and.                    &
+        trim(moment_constraint_type(i)) /= 'specify' .and.                     &
+        trim(moment_constraint_type(i)) /= 'none')  then
+      errval = 1
+      errmsg = "moment_constraint_type must be 'use_seed', 'specify', "//&
+               "or 'none'."
+      return
+    end if
+  end do
+  if (constraints_settings%min_te_angle <= 0.d0) then
+    errval = 1
+    errmsg = "min_te_angle must be > 0."
+    return
+  end if
+  if (constraints_settings%max_curv_reverse < 1) then
+    errval = 1
+    errmsg = "max_curv_reverse must be > 0."
+    return
+  end if
+  if (constraints_settings%curv_threshold <= 0.d0) then
+    errval = 1
+    errmsg = "curv_threshold must be > 0."
+    return
+  end if
+  if (constraints_settings%symmetrical)                                        &
+    write(*,*) "Mirroring top half of seed airfoil for symmetrical constraint."
+  if (constraints_settings%min_flap_degrees >=                                 &
+      constraints_settings%max_flap_degrees) then
+    errval = 1
+    errmsg = "min_flap_degrees must be less than max_flap_degrees."
+    return
+  end if
+  if (constraints_settings%min_flap_degrees <= -90.d0) then
+    errval = 1
+    errmsg = "min_flap_degrees must be greater than -90."
+    return
+  end if
+  if (constraints_settings%max_flap_degrees >= 90.d0) then
+    errval = 1
+    errmsg = "max_flap_degrees must be less than 90."
+    return
+  end if
+
+end subroutine check_constraints_settings
+
+!=============================================================================80
+!
+! Checks initialization_settings type for valid entries
+!
+!=============================================================================80
+subroutine check_initialization_settings(initialization_settings, errval,      &
+                                         errmsg)
+
+  use types, only : initialization_settings_type
+
+  type(initialization_settings_type), intent(in) :: initialization_settings
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
 
   errval = 0
   errmsg = ''
 
-  if (errcode < 0) then
-    write(*,*)
-    if (trim(action_missing_nml) == 'warn') then
-      write(*,'(A)') 'Warning: namelist '//trim(nmlname)//&
-                     ' not found in input file.'
-      write(*,'(A)') 'Using default values.'
-      write(*,*)
-    else
-      errval = 1
-      errmsg = 'namelist '//trim(nmlname)//&
-               ' is required and was not found in input file.'
-      return
-    end if
-  else if (errcode > 0) then
+  if ((initialization_settings%feasible_limit <= 0.d0) .and.                   &
+      initialization_settings%feasible_init) then
     errval = 1
-    errmsg = 'unrecognized variable in namelist '//trim(nmlname)//'.'
+    errmsg = "feasible_limit must be > 0."
     return
-  else
-    continue
+  end if
+  if ((initialization_settings%feasible_init_attempts < 1) .and.               &
+      initializaton_settings%feasible_init) then
+    errval = 1
+    errmsg = "feasible_init_attempts must be > 0."
+    return
   end if
 
-end subroutine namelist_check
+end subroutine check_initialization_settings
+
+!=============================================================================80
+!
+! Checks particle_swarm_settings type for valid entries
+!
+!=============================================================================80
+subroutine check_particle_swarm_settings(particle_swarm_settings, errval,      &
+                                         errmsg)
+
+  use types, only : particle_swarm_settings_type
+
+  type(particle_swarm_settings_type), intent(in) :: particle_swarm_settings
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  character(10) :: pso_convergence_profile
+
+  errval = 0
+  errmsg = ''
+
+! Convert char arrays to fortran strings
+
+  call convert_char_to_fortran(particle_swarm_settings%pso_convergence_profile,&
+                       size(particle_swarm_settings%pso_convergence_profile,1),&
+                       pso_convergence_profile)
+
+  if (particle_swarm_settings%pso_pop < 1) then
+    errval = 1
+    errmsg = "pso_pop must be > 0."
+    return
+  end if
+  if (particle_swarm_settings%pso_tol <= 0.d0) then
+    errval = 1
+    errmsg = "pso_tol must be > 0."
+    return
+  end if
+  if (particle_swarm_settings%pso_maxit < 1) then
+    errval = 1
+    errmsg = "pso_maxit must be > 0."
+    return
+  end if
+  if ( (trim(pso_convergence_profile) /= "quick") .and.                    &
+       (trim(pso_convergence_profile) /= "exhaustive") ) then
+    errval = 1
+    errmsg = "pso_convergence_profile must be 'exhaustive' "//&
+             "or 'quick'."
+    return
+  end if
+
+end subroutine check_particle_swarm_settings
+
+!=============================================================================80
+!
+! Checks genetic_algorithm_settings type for valid entries
+!
+!=============================================================================80
+subroutine check_genetic_algorithm_settings(genetic_algorithm_settings, errval,&
+                                            errmsg)
+
+  use types, only : genetic_algorithm_settings
+
+  type(genetic_algorithm_settings_type), intent(in) ::                         &
+                                                      genetic_algorithm_settings
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  character(10) :: parents_selection_method
+
+  errval = 0
+  errmsg = ''
+
+! Convert char arrays to fortran strings
+
+  call convert_char_to_fortran(                                                &
+                   genetic_algorithm_settings%parents_selection_method,        &
+                   size(genetic_algorithm_settings%parents_selection_method,1),&
+                   parents_selection_method)
+
+  if (genetic_algorithm_settings%ga_pop < 1) then
+    errval = 1
+    errmsg = "ga_pop must be > 0."
+    return
+  end if
+  if (genetic_algorithm_settings%ga_tol <= 0.d0) then
+    errval = 1
+    errmsg = "ga_tol must be > 0."
+    return
+  end if
+  if (genetic_algorithnm_settings%ga_maxit < 1) then
+    errval = 1
+    errmsg = "ga_maxit must be > 0."
+    return
+  end if
+  if ( (trim(parents_selection_method) /= "roulette") .and.                    &
+       (trim(parents_selection_method) /= "tournament") .and.                  &
+       (trim(parents_selection_method) /= "random") ) then
+    errval = 1
+    errmsg = "parents_selection_method must be 'roulette', "//&
+             "'tournament', or 'random'."
+    return
+  end if
+  if ( (genetic_algorithm_settings%parent_fraction <= 0.d0) .or.               &
+       (genetic_algorithm_settings%parent_fraction > 1.d0) ) then
+    errval = 1 
+    errmsg = "parent_fraction must be > 0 and <= 1."
+    return
+  end if
+  if (genetic_algorithm_settings%roulette_selection_pressure <= 0.d0) then 
+    errval = 1
+    errmsg = "roulette_selection_pressure must be > 0."
+    return
+  end if
+  if ( (genetic_algorithm_settings%tournament_fraction <= 0.d0) .or.           &
+       (genetic_algorithm_settings%tournament_fraction > 1.d0) ) then
+    errval = 1
+    errmsg = "tournament_fraction must be > 0 and <= 1."
+    return
+  end if
+  if (genetic_algorithm_settings%crossover_range_factor < 0.d0) then 
+    errval = 1
+    errmsg = "crossover_range_factor must be >= 0."
+    return
+  end if
+  if ( (genetic_algorithm_settings%mutant_probability < 0.d0) .or.             &
+       (genetic_algorithm_settings%mutant_probability > 1.d0) ) then 
+    errval = 1
+    errmsg = "mutant_probability must be >= 0 and <= 1."
+    return
+  end if
+  if (genetic_algorithm_settings%chromosome_mutation_rate < 0.d0) then 
+    errval = 1
+    errmsg = "chromosome_mutation_rate must be >= 0."
+    return
+  end if
+  if (genetic_algorithm_settings%mutation_range_factor < 0.d0) then 
+    errval = 1
+    errmsg = "mutation_range_factor must be >= 0."
+    return
+  end if
+
+end subroutine genetic_algorithm_settings
+
+!=============================================================================80
+!
+! Checks simplex_settings type for valid entries
+!
+!=============================================================================80
+subroutine check_simplex_settings(simplex_settings, errval, errmsg)
+
+  use types, only : simplex_settings
+
+  type(simplex_settings_type), intent(in) :: simplex_settings
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  errval = 0
+  errmsg = ''
+
+  if (simplex_settings%simplex_tol <= 0.d0) then
+    errval = 1
+    errmsg = "simplex_tol must be > 0."
+    return
+  end if
+  if (simplex_settings%simplex_maxit < 1) then
+    errval = 1
+    errmsg = "simplex_maxit must be > 0."
+    return
+  end if
+
+end subroutine check_simplex_settings
+
+!=============================================================================80
+!
+! Checks xfoil_settings type for valid entries
+!
+!=============================================================================80
+subroutine check_xfoil_settings(xfoil_settings, errval, errmsg)
+
+  use types, only : xfoil_settings
+
+  type(xfoil_settings), intent(in) :: xfoil_settings
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  errval = 0
+  errmsg = ''
+
+  if (xfoil_settings%ncrit < 0.d0) then
+    errval = 1
+    errmsg = "ncrit must be >= 0."
+    return
+  end if
+  if (xfoil_settings%xtript < 0.d0 .or. xfoil_settings%xtript > 1.d0) then
+    errval = 1 
+    errmsg = "xtript must be >= 0. and <= 1."
+    return
+  end if
+  if (xfoil_settings%xtripb < 0.d0 .or. xfoil_settings%xtripb > 1.d0) then
+    errval = 1 
+    errmsg = "xtripb must be >= 0. and <= 1."
+    return
+  end if
+  if (xfoil_settings%bl_maxit < 1) then
+    errval = 1
+    errmsg = "bl_maxit must be > 0."
+    return
+  end if
+  if (xfoil_settings%vaccel < 0.d0) then
+    errval = 1
+    errmsg = "vaccel must be >= 0."
+    return
+  end if 
+
+end subroutine check_xfoil_settings
+
+!=============================================================================80
+!
+! Checks xfoil_paneling_settings type for valid entries
+!
+!=============================================================================80
+subroutine check_xfoil_paneling_settings(xfoil_paneling_settings, errval,      &
+                                         errmsg)
+
+  use types, only : xfoil_paneling_settings
+
+  type(xfoil_paneling_settings), intent(in) :: xfoil_paneling_settings
+  integer, intent(out) :: errval
+  character(80), intent(out) :: errmsg
+
+  errval = 0
+  errmsg = ''
+
+end subroutine check_xfoil_paneling_settings
 
 end module input_output

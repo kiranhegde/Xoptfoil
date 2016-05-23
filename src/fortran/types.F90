@@ -54,7 +54,9 @@ module types
     real(kind=C_DOUBLE) :: min_thickness, max_thickness, min_te_angle
     logical(kind=C_BOOL) :: check_curvature
     integer(kind=C_INT) :: max_curv_reverse
-    real(kind=C_DOUBLE) :: curv_threshold, max_flap_degrees, min_flap_degrees
+    real(kind=C_DOUBLE) :: curv_threshold
+    logical(kind=C_BOOL) :: symmetrical
+    real(kind=C_DOUBLE) :: max_flap_degrees, min_flap_degrees
     character(kind=C_CHAR), dimension(8,MAX_OP_POINTS) :: moment_constraint_type
     real(kind=C_DOUBLE), dimension(MAX_OP_POINTS) :: min_moment
   end type constraints_settings_type
