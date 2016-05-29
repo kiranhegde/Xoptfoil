@@ -282,7 +282,7 @@ subroutine particleswarm(xopt, fmin, step, fevals, objfunc, x0, xmin, xmax,    &
     radius = design_radius(dv)
     if (pso_options%relative_fmin_report) then
       write(*,*) '  Iteration: ', step, '  % Improvement over seed: ',         &
-                 (f0 - fmin)/f0*100
+                 (f0 - fmin)/f0*100.d0
     else
       write(*,*) '  Iteration: ', step, ' Minimum objective function value: ', &
                  fmin

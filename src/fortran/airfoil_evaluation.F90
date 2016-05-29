@@ -225,7 +225,7 @@ function aero_objective_function(designvars, include_penalty)
                               top_shape_function, bot_shape_function,          &
                               create_airfoil
   use xfoil_driver,    only : run_xfoil
-  use xfoil_inc,       only : AMAX
+  use xfoil_inc,       only : AMAX, CAMBR
 
 !FIXME: settings is being removed
 use settings
@@ -235,10 +235,11 @@ use settings
   double precision :: aero_objective_function
 
   double precision, dimension(max(size(xseedt,1),size(xseedb,1))) :: x_interp, &
-                                                 zt_interp, zb_interp, thickness
+                                               zt_interp, zb_interp, thickness
   double precision, dimension(size(xseedt,1)) :: zt_new
   double precision, dimension(size(xseedb,1)) :: zb_new
-  double precision, dimension(size(xseedt,1)+size(xseedb,1)-1) :: curv
+  double precision, dimension(size(xseedt,1)) :: curvt
+  double precision, dimension(size(xseedb,1)) :: curvb
   integer :: nmodest, nmodesb, nptt, nptb, i, dvtbnd1, dvtbnd2, dvbbnd1,       &
              dvbbnd2, ncheckpt, nptint
   double precision :: penaltyval
@@ -252,11 +253,13 @@ use settings
   double precision, dimension(noppoint) :: clcheck, cdcheck, cmcheck, rmscheck
   double precision, dimension(noppoint) :: actual_flap_degrees
   logical, dimension(noppoint) :: checkpt
+  logical :: check
   double precision :: increment, curv1, curv2
-  integer :: nreversals, ndvs
+  integer :: nreversalst, nreversalsb, ndvs
   double precision :: gapallow, maxthick, ffact
   integer :: check_idx, flap_idx, dvcounter
-  double precision, parameter :: eps = 1.0D-08
+  double precision, parameter :: epsexit = 1.0D-04
+  double precision, parameter :: epsupdate = 1.0D-08
   logical :: penalize
 
 ! Needed when calling interp_vector, but any errors are ignored here.
@@ -379,8 +382,7 @@ use settings
     if (xseedt(i) > 0.5d0) then
       gapallow = tegap + 2.d0 * heightfactor * (x_interp(nptint) -             &
                                                 x_interp(i))
-      if (thickness(i) < gapallow)                                             &
-        penaltyval = penaltyval + (gapallow - thickness(i))/0.001d0
+      penaltyval = penaltyval + max(0.d0,gapallow-thickness(i))/0.001d0
     end if
 
   end do
@@ -394,26 +396,35 @@ use settings
 
   if (check_curvature) then
 
-!   Compute curvature
+!   Compute curvature on top and bottom
 
-    curv = curvature(curr_foil%npoint, curr_foil%x, curr_foil%z)
+    curvt = curvature(nptt, xseedt, zt_new)
+    curvb = curvature(nptb, xseedb, zb_new)
 
 !   Check number of reversals that exceed the threshold
 
-    nreversals = 0
+    nreversalst = 0
     curv1 = 0.d0
-
-    do i = 2, nptt + nptb - 2
-
-      if (abs(curv(i)) >= curv_threshold) then
-        curv2 = curv(i)
-        if (curv2*curv1 < 0.d0) nreversals = nreversals + 1
+    do i = 2, nptt - 1
+      if (abs(curvt(i)) >= curv_threshold) then
+        curv2 = curvt(i)
+        if (curv2*curv1 < 0.d0) nreversalst = nreversalst + 1
         curv1 = curv2
       end if
-
     end do
 
-    penaltyval = penaltyval + max(0.d0,dble(nreversals-max_curv_reverse))
+    nreversalsb = 0
+    curv1 = 0.d0
+    do i = 2, nptb - 1
+      if (abs(curvb(i)) >= curv_threshold) then
+        curv2 = curvb(i)
+        if (curv2*curv1 < 0.d0) nreversalsb = nreversalsb + 1
+        curv1 = curv2
+      end if
+    end do
+
+    penaltyval = penaltyval + max(0.d0,dble(nreversalst-max_curv_reverse_top))
+    penaltyval = penaltyval + max(0.d0,dble(nreversalsb-max_curv_reverse_bot))
 
   end if
 
@@ -444,7 +455,7 @@ use settings
 
 ! Exit if geometry and flap angles don't check out
 
-  if ( (penaltyval > eps) .and. penalize ) then
+  if ( (penaltyval > epsexit) .and. penalize ) then
     aero_objective_function = penaltyval*1.0D+06
     return
   end if
@@ -455,6 +466,22 @@ use settings
                  op_mode(1:noppoint), reynolds(1:noppoint), mach(1:noppoint),  &
                  use_flap, x_flap, y_flap, actual_flap_degrees(1:noppoint),    &
                  xfoil_options, lift, drag, moment, viscrms)
+
+! Add penalty for too large panel angles
+
+  penaltyval = penaltyval + max(0.0d0,AMAX-25.d0)/5.d0
+
+! Add penalty for camber outside of constraints
+
+  penaltyval = penaltyval + max(0.d0,CAMBR-max_camber)/0.025d0
+  penaltyval = penaltyval + max(0.d0,min_camber-CAMBR)/0.025d0
+
+! Exit if panel angles and camber constraints don't check out
+
+  if ( (penaltyval > epsexit) .and. penalize ) then
+    aero_objective_function = penaltyval*1.0D+06
+    return
+  end if
 
 ! Determine if points need to be checked for xfoil consistency
 
@@ -467,9 +494,17 @@ use settings
 
     if (maxlift(1) == -100.d0) exit
 
-    if ((lift(i) > (1.d0 + checktol)*maxlift(i)) .or.                          &
-        (drag(i) < (1.d0 - checktol)*mindrag(i))) then
+!   Check when lift or drag values are suspect
 
+    check = .false.
+    if (trim(optimization_type(i)) == 'min-drag') then
+      if (drag(i) < (1.d0 - checktol)*mindrag(i)) check = .true.
+    else
+      if ((lift(i) > (1.d0 + checktol)*maxlift(i)) .or.                        &
+          (drag(i) < (1.d0 - checktol)*mindrag(i))) check = .true.
+    end if
+
+    if (check) then
       checkpt(i) = .true.
       ncheckpt = ncheckpt + 1
       checkpt_list(i) = ncheckpt
@@ -608,11 +643,6 @@ use settings
     end if
   end do
 
-! Add penalty for too large panel angles
-
-  maxpanang = AMAX
-  penaltyval = penaltyval + max(0.0d0,maxpanang-25.d0)/5.d0
-
 ! Add all penalties to objective function, and make them very large
 
   if (penalize) aero_objective_function =                                      &
@@ -620,7 +650,7 @@ use settings
 
 ! Update maxlift and mindrag only if it is a good design
 
-  if (penaltyval <= eps) then
+  if (penaltyval <= epsupdate) then
     do i = 1, noppoint
 !$omp critical
       if (lift(i) > maxlift(i)) maxlift(i) = lift(i)
@@ -628,14 +658,6 @@ use settings
 !$omp end critical
     end do
   end if
-
-!Bug check
-!if (aero_objective_function < 0.5) then
-!  print *, "penaltyval: ", penaltyval
-!  do i = 1, noppoint
-!    print *, drag(i), checkpt(i)
-!  end do
-!end if
 
 end function aero_objective_function
 

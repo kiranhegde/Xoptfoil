@@ -33,7 +33,7 @@ subroutine check_seed(xoffset, zoffset, foilscale, seed_violation_handling,    &
 
   use math_deps,          only : interp_vector, curvature
   use xfoil_driver,       only : airfoil_type, run_xfoil
-  use xfoil_inc,          only : AMAX
+  use xfoil_inc,          only : AMAX, CAMBR
   use airfoil_operations, only : allocate_airfoil, deallocate_airfoil
 
 !FIXME: use only variables that are needed
@@ -47,14 +47,17 @@ use airfoil_evaluation
   type(airfoil_type) :: check_foil
   double precision, dimension(:), allocatable :: x_interp, thickness
   double precision, dimension(:), allocatable :: zt_interp, zb_interp
-  double precision, dimension(size(xseedt,1)+size(xseedb,1)-1) :: curv
+  double precision, dimension(size(xseedt,1)) :: curvt
+  double precision, dimension(size(xseedb,1)) :: curvb
   double precision :: penaltyval, tegap, gapallow, maxthick, heightfactor
   double precision :: panang1, panang2, maxpanang, curv1, curv2
   double precision :: checkval, len1, len2, growth1, growth2, xtrans, ztrans
   double precision, dimension(noppoint) :: lift, drag, moment, viscrms
-  integer :: i, nptt, nptb, nreversals, nptint 
+  integer :: i, nptt, nptb, nreversalst, nreversalsb, nptint 
   character(30) :: text, text2
-  character(4) :: stoptype
+
+!FIXME: combine all violations and send back for input at top level, instead
+!  calling ask_stop multiple times here.
 
   errval = 0
   errmsg = ''
@@ -122,25 +125,13 @@ use airfoil_evaluation
     write(text,'(F8.4)') maxpanang
     text = adjustl(text)
     write(*,*) "LE panel angle: "//trim(text)//" degrees"
-    if (stoptype == 'stop') then
-      errval = 1
-      errmsg = "seed airfoil's leading edge is too blunt."
-      return
-    else
-      call print_warning("seed airfoil's leading edge is too blunt.")
-    end if
+    call ask_stop("Seed airfoil's leading edge is too blunt.")
   end if
   if (abs(panang1 - panang2) > 20.d0) then
     write(text,'(F8.4)') abs(panang1 - panang2)
     text = adjustl(text)
     write(*,*) "LE panel angle: "//trim(text)//" degrees"
-    if (stoptype == 'stop') then
-      errval = 1
-      errmsg = "seed airfoil's leading edge is too sharp."
-      return
-    else
-      call print_warning("seed airfoil's leading edge is too sharp.")
-    end if
+    call ask_stop("Seed airfoil's leading edge is too sharp.")
   end if
 
 ! Interpolate either bottom surface to top surface x locations or vice versa
@@ -206,17 +197,9 @@ use airfoil_evaluation
 
 ! Too thin on back half
 
-  if (penaltyval > 0.d0) then
-    if (stoptype == 'stop') then
-      errval = 1
-      errmsg = "seed airfoil is thinner than min_te_angle near the "//&
-               "trailing edge."
-      return
-    else
-      call print_warning("seed airfoil is thinner than min_te_angle near "//&
-                         "the trailing edge.")
-    end if
-  end if
+  if (penaltyval > 0.d0)                                                       &
+     call ask_stop("Seed airfoil is thinner than min_te_angle near the "//&
+                   "trailing edge.")
   penaltyval = 0.d0
 
 ! Max thickness too low
@@ -225,13 +208,7 @@ use airfoil_evaluation
     write(text,'(F8.4)') maxthick
     text = adjustl(text)
     write(*,*) "Thickness: "//trim(text)
-    if (stoptype == 'stop') then
-      errval = 1
-      errmsg = "seed airfoil violates min_thickness constraint."
-      return
-    else
-      call print_warning("seed airfoil violates min_thickness constraint.")
-    end if
+    call ask_stop("Seed airfoil violates min_thickness constraint.")
   end if
 
 ! Max thickness too high
@@ -240,32 +217,25 @@ use airfoil_evaluation
     write(text,'(F8.4)') maxthick
     text = adjustl(text)
     write(*,*) "Thickness: "//trim(text)
-    if (stoptype == 'stop') then
-      errval = 1
-      errmsg = "seed airfoil violates max_thickness constraint."
-      return
-    else
-      call print_warning("seed airfoil violates max_thickness constraint.")
-    end if
+    call ask_stop("Seed airfoil violates max_thickness constraint.")
   end if
 
 ! Check for curvature reversals
 
   if (check_curvature) then
 
-!   Compute curvature
+!   Compute curvature on top and bottom surfaces
 
-    curv = curvature(check_foil%npoint, check_foil%x, check_foil%z)
+    curvt = curvature(nptt, xseedt, zseedt)
+    curvb = curvature(nptb, xseedb, zseedb)
 
 !   Check number of reversals that exceed the threshold
 
-    nreversals = 0
+    nreversalst = 0
     curv1 = 0.d0
-
-    do i = 2, nptt + nptb - 2
-
-      if (abs(curv(i)) >= curv_threshold) then
-        curv2 = curv(i)
+    do i = 2, nptt - 1
+      if (abs(curvt(i)) >= curv_threshold) then
+        curv2 = curvt(i)
         if (curv2*curv1 < 0.d0) then
           xtrans = check_foil%x(i)/foilscale - xoffset
           write(text,'(F8.4)') xtrans
@@ -273,27 +243,48 @@ use airfoil_evaluation
           ztrans = check_foil%z(i)/foilscale - zoffset
           write(text2,'(F8.4)') ztrans
           text2 = adjustl(text2)
-          write(*,*) "Curvature reversal detected near (x, z) = ("//&
+          write(*,*) "Curvature reversal on top surface near (x, z) = ("//&
                          trim(text)//", "//trim(text2)//")"
-          write(text,'(F8.4)') curv(i)
+          write(text,'(F8.4)') curvt(i)
           text = adjustl(text)
           write(*,*) "Curvature: "//trim(text)
-          nreversals = nreversals + 1
+          nreversalst = nreversalst + 1
         end if
         curv1 = curv2
       end if
-
     end do
 
-    if (nreversals > max_curv_reverse) then
-      if (stoptype == 'stop') then
-        errval = 1                                         
-        errmsg = "seed airfoil violates max_curv_reverse constraint."
-        return
-      else
-        call print_warning("seed airfoil violates max_curv_reverse constraint.")
+    if (nreversalst > max_curv_reverse_top)                                    &
+      call ask_stop("Seed airfoil violates max_curv_reverse_top constraint.")
+
+!   Bottom surface
+
+    nreversalsb = 0
+    curv1 = 0.d0
+    do i = 2, nptb - 1
+      if (abs(curvb(i)) >= curv_threshold) then
+        curv2 = curvb(i)
+        if (curv2*curv1 < 0.d0) then
+          xtrans = check_foil%x(i)/foilscale - xoffset
+          write(text,'(F8.4)') xtrans
+          text = adjustl(text)
+          ztrans = check_foil%z(i)/foilscale - zoffset
+          write(text2,'(F8.4)') ztrans
+          text2 = adjustl(text2)
+          write(*,*) "Curvature reversal on bot surface near (x, z) = ("//&
+                         trim(text)//", "//trim(text2)//")"
+          write(text,'(F8.4)') curvb(i)
+          text = adjustl(text)
+          write(*,*) "Curvature: "//trim(text)
+          nreversalsb = nreversalsb + 1
+        end if
+        curv1 = curv2
       end if
-    end if
+    end do
+
+    if (nreversalsb > max_curv_reverse_bot)                                    &
+      call ask_stop("Seed airfoil violates max_curv_reverse_bot constraint.")
+
   end if
 
 ! Check for bad combinations of operating conditions and optimization types
@@ -325,21 +316,42 @@ use airfoil_evaluation
                  use_flap, x_flap, y_flap, flap_degrees(1:noppoint),           &
                  xfoil_options, lift, drag, moment, viscrms)
 
+! Penalty for too large panel angles
+
+  if (AMAX > 25.d0) then
+    write(text,'(F8.4)') AMAX
+    text = adjustl(text)
+    write(*,*) "Max panel angle: "//trim(text)
+    call ask_stop("Seed airfoil panel angles are too large. Try adjusting "//&
+                  "xfoil_paneling_options.")
+  end if
+
+! Camber too high
+
+  if (CAMBR > max_camber) then
+    write(text,'(F8.4)') CAMBR
+    text = adjustl(text)
+    write(*,*) "Camber: "//trim(text)
+    call ask_stop("Seed airfoil violates max_camber constraint.")
+  end if
+
+! Camber too low
+
+  if (CAMBR < min_camber) then
+    write(text,'(F8.4)') CAMBR
+    text = adjustl(text)
+    write(*,*) "Camber: "//trim(text)
+    call ask_stop("Seed airfoil violates min_camber constraint.")
+  end if
+
 ! Check for unconverged points
 
   do i = 1, noppoint
     if (viscrms(i) > 1.0D-04) then
       write(text,*) i
       text = adjustl(text)
-      if (stoptype == 'stop') then
-        errval = 1
-        errmsg = "Xfoil did not converge for operating point "//&
-                 trim(text)//"."
-        return
-      else
-        call print_warning("Xfoil did not converge for operating point "//&
-                           trim(text)//".")
-      end if
+      call ask_stop("Xfoil calculations did not converge for operating "//&
+                    "point "//trim(text)//".")
     end if
   end do
 
@@ -355,15 +367,8 @@ use airfoil_evaluation
         write(*,*) "Moment: "//trim(text)
         write(text,*) i
         text = adjustl(text)
-        if (stoptype == 'stop') then
-          errval = 1
-          errmsg = "seed airfoil violates min_moment constraint for "//&
-                   "op. point "//trim(text)//"."
-          return
-        else
-          call print_warning("seed airfoil violates min_moment constraint "//&
-                             "for op. point "//trim(text)//".")
-        end if
+        call ask_stop("Seed airfoil violates min_moment constraint for "//&
+                      "operating point "//trim(text)//".")
       end if
     end if
   end do
@@ -397,24 +402,6 @@ use airfoil_evaluation
     scale_factor(i) = 1.d0/checkval
   end do
 
-! Penalty for too large panel angles
-
-  maxpanang = AMAX
-  if (maxpanang > 25.d0) then
-    write(text,'(F8.4)') maxpanang
-    text = adjustl(text)
-    write(*,*) "Max panel angle: "//trim(text)
-    if (stoptype == 'stop') then
-      errval = 1
-      errmsg = "seed airfoil panel angles are too large. Adjust "//&
-               "xfoil_paneling_options."
-      return
-    else
-      call print_warning("seed airfoil panel angles are too large. Adjust "//&
-                         "xfoil_paneling_options.")
-    end if
-  end if
-
 ! Deallocate memory for seed airfoil
 
   call deallocate_airfoil(check_foil)
@@ -423,17 +410,43 @@ end subroutine check_seed
 
 !=============================================================================80
 !
-! Prints warning
+! Asks user to stop or continue
 !
 !=============================================================================80
-subroutine print_warning(message)
+subroutine ask_stop(message)
 
   character(*), intent(in) :: message
+
+  character :: choice
+  logical :: valid_choice
+
+! Get user input
+
+  valid_choice = .false.
+  do while (.not. valid_choice)
   
-  write(*,*)
-  write(*,'(A)') 'Warning: '//trim(message)
-  write(*,*)
+    write(*,'(A)') 'Warning: '//trim(message)
+    write(*,'(A)', advance='no') 'Continue anyway? (y/n): '
+    read(*,'(A)') choice
 
-end subroutine print_warning
+    if ( (choice == 'y') .or. (choice == 'Y') ) then
+      valid_choice = .true.
+      choice = 'y'
+    else if ( ( choice == 'n') .or. (choice == 'N') ) then
+      valid_choice = .true.
+      choice = 'n'
+    else
+      write(*,'(A)') 'Please enter y or n.'
+      valid_choice = .false.
+    end if
 
+  end do
+
+! Stop or continue
+
+  write(*,*)
+  if (choice == 'n') stop
+
+end subroutine ask_stop
+  
 end module input_sanity

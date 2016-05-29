@@ -151,6 +151,8 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
   integer :: i, j, iunit, ioerr, iostat1, counter, idx
   character(30) :: text
+  integer :: nbot_actual, nmoment_constraint
+  character :: choice
 
   namelist /optimization_options/ search_type, global_search, local_search,    &
             seed_airfoil, airfoil_file, naca_digits, shape_functions,          &
@@ -159,10 +161,11 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   namelist /operating_conditions/ noppoint, op_mode, op_point, reynolds, mach, &
             use_flap, x_flap, y_flap, flap_selection, flap_degrees, weighting, &
             optimization_type 
-  namelist /constraints/ seed_violation_handling, min_thickness, max_thickness,&
-                         moment_constraint_type, min_moment, min_te_angle,     &
-                         check_curvature, max_curv_reverse, curv_threshold,    &
-                         symmetrical, min_flap_degrees, max_flap_degrees
+  namelist /constraints/ min_thickness, max_thickness, moment_constraint_type, &
+                         min_moment, min_te_angle, check_curvature,            &
+                         max_curv_reverse_top, max_curv_reverse_bot,           &
+                         curv_threshold, symmetrical, min_flap_degrees,        &
+                         max_flap_degrees, min_camber, max_camber
   namelist /initialization/ feasible_init, feasible_limit,                     &
                             feasible_init_attempts
   namelist /particle_swarm_options/ pso_pop, pso_tol, pso_maxit,               &
@@ -293,11 +296,14 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   seed_violation_handling = 'stop'
   min_thickness = 0.06d0
   max_thickness = 1000.d0
+  min_camber = -0.1d0
+  max_camber = 0.1d0
   moment_constraint_type(:) = 'use_seed'
   min_moment(:) = -1.d0
   min_te_angle = 5.d0
-  check_curvature = .false.
-  max_curv_reverse = 3
+  check_curvature = .true.
+  max_curv_reverse_top = 0
+  max_curv_reverse_bot = 1
   curv_threshold = 0.30d0
   symmetrical = .false.
   min_flap_degrees = -5.d0
@@ -327,6 +333,20 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 ! Normalize weightings for operating points
 
   weighting = weighting/sum(weighting(1:noppoint))
+
+!FIXME: this will have to be done in a different way
+! Ask about removing pitching moment constraints for symmetrical optimization
+
+  if (symmetrical) then
+    nmoment_constraint = 0
+    do i = 1, noppoint
+      if (trim(moment_constraint_type(i)) /= 'none')                           &
+        nmoment_constraint = nmoment_constraint + 1
+    end do
+    
+    if (nmoment_constraint > 0) choice = ask_moment_constraints()
+    if (choice == 'y') moment_constraint_type(:) = 'none'
+  end if
 
 ! Set default initialization options
 
@@ -369,6 +389,14 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
   if (trim(search_type) == 'global_and_local' .or. trim(search_type) ==        &
       'global') then
+
+!   The number of bottom shape functions actually used (0 for symmetrical)
+
+    if (symmetrical) then
+      nbot_actual = 0
+    else
+      nbot_actual = nfunctions_bot
+    end if
   
 !FIXME: this should go somewhere else, called by initialize
 !!   Set design variables with side constraints
@@ -379,8 +407,8 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 !
 !      allocate(constrained_dvs(nflap_optimize))
 !      counter = 0
-!      do i = nfunctions_top + nfunctions_bot + 1,                              &
-!             nfunctions_top + nfunctions_bot + nflap_optimize
+!      do i = nfunctions_top + nbot_actual + 1,                                 &
+!             nfunctions_top + nbot_acutal + nflap_optimize
 !        counter = counter + 1
 !        constrained_dvs(counter) = i
 !      end do
@@ -389,10 +417,10 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 !
 !!     For Hicks-Henne, also constrain bump locations and width
 !
-!      allocate(constrained_dvs(2*nfunctions_top + 2*nfunctions_bot +           &
+!      allocate(constrained_dvs(2*nfunctions_top + 2*nbot_actual +              &
 !                               nflap_optimize))
 !      counter = 0
-!      do i = 1, nfunctions_top + nfunctions_bot
+!      do i = 1, nfunctions_top + nbot_actual
 !        counter = counter + 1
 !        idx = 3*(i-1) + 2      ! DV index of bump location, shape function i
 !        constrained_dvs(counter) = idx
@@ -400,8 +428,8 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 !        idx = 3*(i-1) + 3      ! Index of bump width, shape function i
 !        constrained_dvs(counter) = idx
 !      end do
-!      do i = 3*(nfunctions_top + nfunctions_bot) + 1,                          &
-!             3*(nfunctions_top + nfunctions_bot) + nflap_optimize
+!      do i = 3*(nfunctions_top + nbot_actual) + 1,                             &
+!             3*(nfunctions_top + nbot_actual) + nflap_optimize
 !        counter = counter + 1
 !        constrained_dvs(counter) = i
 !      end do
@@ -644,7 +672,6 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 ! Constraints namelist
 
   write(*,'(A)') " &constraints"
-  write(*,*) " seed_violation_handling = "//trim(seed_violation_handling)
   write(*,*) " min_thickness = ", min_thickness
   write(*,*) " max_thickness = ", max_thickness
   do i = 1, noppoint
@@ -656,11 +683,14 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   end do
   write(*,*) " min_te_angle = ", min_te_angle
   write(*,*) " check_curvature = ", check_curvature
-  write(*,*) " max_curv_reverse = ", max_curv_reverse
+  write(*,*) " max_curv_reverse_top = ", max_curv_reverse_top
+  write(*,*) " max_curv_reverse_bot = ", max_curv_reverse_bot
   write(*,*) " curv_threshold = ", curv_threshold
   write(*,*) " symmetrical = ", symmetrical
   write(*,*) " min_flap_degrees = ", min_flap_degrees
   write(*,*) " max_flap_degrees = ", max_flap_degrees
+  write(*,*) " min_camber = ", min_camber
+  write(*,*) " max_camber = ", max_camber
   write(*,'(A)') " /"
   write(*,*)
 
@@ -1690,5 +1720,45 @@ subroutine check_xfoil_paneling_settings(xfoil_paneling_settings, errval,      &
   errmsg = ''
 
 end subroutine check_xfoil_paneling_settings
+
+!=============================================================================80
+!
+! Asks user to turn off pitching moment constraints
+!
+!=============================================================================80
+function ask_moment_constraints()
+
+  character :: ask_moment_constraints
+  logical :: valid_choice
+
+! Get user input
+
+  valid_choice = .false.
+  do while (.not. valid_choice)
+  
+    write(*,*)
+    write(*,'(A)') 'Warning: pitching moment constraints not recommended for '
+    write(*,'(A)', advance='no') 'symmetrical airfoil optimization. '//&
+                                 'Turn them off now? (y/n): '
+    read(*,'(A)') ask_moment_constraints
+
+    if ( (ask_moment_constraints == 'y') .or.                                  &
+         (ask_moment_constraints == 'Y') ) then
+      valid_choice = .true.
+      ask_moment_constraints = 'y'
+      write(*,*)
+      write(*,*) "Setting moment_constraint_type(:) = 'none'."
+    else if ( (ask_moment_constraints == 'n') .or.                             &
+         (ask_moment_constraints == 'N') ) then
+      valid_choice = .true.
+      ask_moment_constraints = 'n'
+    else
+      write(*,'(A)') 'Please enter y or n.'
+      valid_choice = .false.
+    end if
+
+  end do
+
+end function ask_moment_constraints
 
 end module input_output
