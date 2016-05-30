@@ -52,8 +52,9 @@ module types
   type, bind(c) :: constraints_settings_type
     character(kind=C_CHAR) :: seed_violation_handling(4)
     real(kind=C_DOUBLE) :: min_thickness, max_thickness, min_te_angle
+    real(kind=C_DOUBLE) :: min_camber, max_camber
     logical(kind=C_BOOL) :: check_curvature
-    integer(kind=C_INT) :: max_curv_reverse
+    integer(kind=C_INT) :: max_curv_reverse_top, max_curv_reverse_bot
     real(kind=C_DOUBLE) :: curv_threshold
     logical(kind=C_BOOL) :: symmetrical
     real(kind=C_DOUBLE) :: max_flap_degrees, min_flap_degrees
@@ -82,7 +83,7 @@ module types
     real(kind=C_DOUBLE) :: parent_fraction, roulette_selection_pressure,       &
                            tournament_fraction, crossover_range_factor,        &
                            mutant_probability, chromosome_mutation_rate,       &
-                           mutant_range_factor
+                           mutation_range_factor
   end type genetic_algorithm_settings_type
 
   type, bind(c) :: simplex_settings_type

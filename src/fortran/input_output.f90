@@ -92,8 +92,9 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
   character(4) :: seed_violation_handling
   double precision :: min_thickness, max_thickness, min_te_angle
+  double precision :: min_camber, max_camber
   logical(kind=C_BOOL) :: check_curvature
-  integer :: max_curv_reverse
+  integer :: max_curv_reverse_top, max_curv_reverse_bot
   double precision :: curv_threshold
   logical(kind=C_BOOL) :: symmetrical
   double precision :: max_flap_degrees, min_flap_degrees
@@ -122,7 +123,7 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   double precision :: parent_fraction, roulette_selection_pressure,            &
                       tournament_fraction, crossover_range_factor,             &
                       mutant_probability, chromosome_mutation_rate,            &
-                      mutant_range_factor
+                      mutation_range_factor
 
 ! Simplex options
 
@@ -149,7 +150,7 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   
 ! Other variables
 
-  integer :: i, j, iunit, ioerr, iostat1, counter, idx
+  integer :: i, iunit, ioerr, iostat1
   character(30) :: text
   integer :: nbot_actual, nmoment_constraint
   character :: choice
@@ -539,9 +540,12 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
                          constraints_settings%seed_violation_handling)
   constraints_settings%min_thickness = min_thickness
   constraints_settings%max_thickness = max_thickness
+  constraints_settings%min_camber = min_camber
+  constraints_settings%max_camber = max_camber
   constraints_settings%min_te_angle = min_te_angle
   constraints_settings%check_curvature = check_curvature
-  constraints_settings%max_curv_reverse = max_curv_reverse
+  constraints_settings%max_curv_reverse_top = max_curv_reverse_top
+  constraints_settings%max_curv_reverse_bot = max_curv_reverse_bot
   constraints_settings%curv_threshold = curv_threshold
   constraints_settings%max_flap_degrees = max_flap_degrees
   constraints_settings%min_flap_degrees = min_flap_degrees
@@ -581,7 +585,7 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   genetic_algorithm_settings%crossover_range_factor = crossover_range_factor
   genetic_algorithm_settings%mutant_probability = mutant_probability
   genetic_algorithm_settings%chromosome_mutation_rate = chromosome_mutation_rate
-  genetic_algorithm_settings%mutant_range_factor = mutant_range_factor
+  genetic_algorithm_settings%mutation_range_factor = mutation_range_factor
   
 ! Populate simplex_settings derived type
 
@@ -768,7 +772,7 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   write(*,*) " xtripb = ", xtripb
   write(*,*) " viscous_mode = ", viscous_mode
   write(*,*) " silent_mode = ", silent_mode
-  write(*,*) " bl_maxit = ", maxit
+  write(*,*) " bl_maxit = ", bl_maxit
   write(*,*) " vaccel = ", vaccel
   write(*,*) " fix_unconverged = ", fix_unconverged
   write(*,*) " reinitialize = ", reinitialize
@@ -799,8 +803,8 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
 ! Constraints
 
-  call check_constraints_settings(constraints_settings, max_op_points, errval, &
-                                  errmsg)
+  call check_constraints_settings(constraints_settings, noppoint,              &
+                                  max_op_points, errval, errmsg)
   if (errval /= 0) return
 
 ! Initialization options
@@ -908,14 +912,16 @@ end subroutine read_inputs
 ! Subroutine to read inputs from namelist file - for xfoil_only
 !
 !=============================================================================80
-subroutine read_inputs_xfoil_only(input_file, airfoil_file,                    &
+subroutine read_inputs_xfoil_only(input_file, max_op_points, airfoil_file,     &
                                   operating_points_settings, xfoil_settings,   &
                                   xfoil_paneling_settings, errval, errmsg)
 
+  use iso_c_binding, only : C_BOOL
   use types, only : operating_points_settings_type, xfoil_settings_type,       &
                     xfoil_paneling_settings_type
 
   character(*), intent(in) :: input_file
+  integer, intent(in) :: max_op_points
   character(80), intent(out) :: airfoil_file
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
@@ -1074,7 +1080,7 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file,                    &
   write(*,*) " xtripb = ", xtripb
   write(*,*) " viscous_mode = ", viscous_mode
   write(*,*) " silent_mode = ", silent_mode
-  write(*,*) " bl_maxit = ", maxit
+  write(*,*) " bl_maxit = ", bl_maxit
   write(*,*) " vaccel = ", vaccel
   write(*,*) " fix_unconverged = ", fix_unconverged
   write(*,*) " reinitialize = ", reinitialize
@@ -1100,7 +1106,7 @@ subroutine read_inputs_xfoil_only(input_file, airfoil_file,                    &
   operating_points_settings%noppoint = noppoint
   operating_points_settings%use_flap = use_flap
   operating_points_settings%x_flap = x_flap
-  operating_points_settings%y_flap = y_fla
+  operating_points_settings%y_flap = y_flap
   do i = 1, max_op_points
     call convert_char_to_c(op_mode(i), len(op_mode(i)),                        &
                            operating_points_settings%op_mode(:,i))
@@ -1262,7 +1268,7 @@ subroutine check_operating_points_settings(operating_points_settings,          &
   use types, only : operating_points_settings_type
   use util,  only : convert_char_to_fortran
 
-  type(operating_points_settings), intent(in) :: operating_points_settings
+  type(operating_points_settings_type), intent(in) :: operating_points_settings
   integer, intent(in) :: max_op_points
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
@@ -1280,15 +1286,15 @@ subroutine check_operating_points_settings(operating_points_settings,          &
   do i = 1, max_op_points
     call convert_char_to_fortran(operating_points_settings%op_mode(:,i),       &
                                  size(operating_points_settings%op_mode,1),    &
-                                 op_mode)
+                                 op_mode(i))
     call convert_char_to_fortran(                                              &
                            operating_points_settings%optimization_type(:,i),   &
                            size(operating_points_settings%optimization_type,1),&
-                           optimization_type)
+                           optimization_type(i))
     call convert_char_to_fortran(                                              &
                               operating_points_settings%flap_selection(:,i),   &
                               size(operating_points_settings%flap_selection,1),&
-                              flap_selection)
+                              flap_selection(i))
   end do
 
   if (operating_points_settings%noppoint < 1) then
@@ -1364,14 +1370,14 @@ end subroutine check_operating_points_settings
 ! Checks constraints_settings type for valid entries
 !
 !=============================================================================80
-subroutine check_constraints_settings(constraints_settings, max_op_points,     &
-                                      errval, errmsg)
+subroutine check_constraints_settings(constraints_settings, noppoint,          &
+                                      max_op_points, errval, errmsg)
 
   use types, only : constraints_settings_type
   use util,  only : convert_char_to_fortran
 
   type(constraints_settings_type), intent(in) :: constraints_settings
-  integer, intent(in) :: max_op_points
+  integer, intent(in) :: noppoint, max_op_points
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
 
@@ -1391,7 +1397,7 @@ subroutine check_constraints_settings(constraints_settings, max_op_points,     &
     call convert_char_to_fortran(                                              &
                            constraints_settings%moment_constraint_type(:,i),   &
                            size(constraints_settings%moment_constraint_type,1),&
-                           moment_constraint_type)
+                           moment_constraint_type(i))
   end do
 
   if (trim(seed_violation_handling) /= 'stop' .and.                            &
@@ -1425,9 +1431,14 @@ subroutine check_constraints_settings(constraints_settings, max_op_points,     &
     errmsg = "min_te_angle must be > 0."
     return
   end if
-  if (constraints_settings%max_curv_reverse < 1) then
+  if (constraints_settings%max_curv_reverse_top < 0) then
     errval = 1
-    errmsg = "max_curv_reverse must be > 0."
+    errmsg = "max_curv_reverse_top must be >= 0."
+    return
+  end if
+  if (constraints_settings%max_curv_reverse_bot < 0) then
+    errval = 1
+    errmsg = "max_curv_reverse_bot must be >= 0."
     return
   end if
   if (constraints_settings%curv_threshold <= 0.d0) then
@@ -1480,7 +1491,7 @@ subroutine check_initialization_settings(initialization_settings, errval,      &
     return
   end if
   if ((initialization_settings%feasible_init_attempts < 1) .and.               &
-      initializaton_settings%feasible_init) then
+      initialization_settings%feasible_init) then
     errval = 1
     errmsg = "feasible_init_attempts must be > 0."
     return
@@ -1546,7 +1557,7 @@ end subroutine check_particle_swarm_settings
 subroutine check_genetic_algorithm_settings(genetic_algorithm_settings, errval,&
                                             errmsg)
 
-  use types, only : genetic_algorithm_settings
+  use types, only : genetic_algorithm_settings_type
 
   type(genetic_algorithm_settings_type), intent(in) ::                         &
                                                       genetic_algorithm_settings
@@ -1575,7 +1586,7 @@ subroutine check_genetic_algorithm_settings(genetic_algorithm_settings, errval,&
     errmsg = "ga_tol must be > 0."
     return
   end if
-  if (genetic_algorithnm_settings%ga_maxit < 1) then
+  if (genetic_algorithm_settings%ga_maxit < 1) then
     errval = 1
     errmsg = "ga_maxit must be > 0."
     return
@@ -1627,7 +1638,7 @@ subroutine check_genetic_algorithm_settings(genetic_algorithm_settings, errval,&
     return
   end if
 
-end subroutine genetic_algorithm_settings
+end subroutine check_genetic_algorithm_settings
 
 !=============================================================================80
 !
@@ -1636,7 +1647,7 @@ end subroutine genetic_algorithm_settings
 !=============================================================================80
 subroutine check_simplex_settings(simplex_settings, errval, errmsg)
 
-  use types, only : simplex_settings
+  use types, only : simplex_settings_type
 
   type(simplex_settings_type), intent(in) :: simplex_settings
   integer, intent(out) :: errval
@@ -1665,9 +1676,9 @@ end subroutine check_simplex_settings
 !=============================================================================80
 subroutine check_xfoil_settings(xfoil_settings, errval, errmsg)
 
-  use types, only : xfoil_settings
+  use types, only : xfoil_settings_type
 
-  type(xfoil_settings), intent(in) :: xfoil_settings
+  type(xfoil_settings_type), intent(in) :: xfoil_settings
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
 
@@ -1710,9 +1721,9 @@ end subroutine check_xfoil_settings
 subroutine check_xfoil_paneling_settings(xfoil_paneling_settings, errval,      &
                                          errmsg)
 
-  use types, only : xfoil_paneling_settings
+  use types, only : xfoil_paneling_settings_type
 
-  type(xfoil_paneling_settings), intent(in) :: xfoil_paneling_settings
+  type(xfoil_paneling_settings_type), intent(in) :: xfoil_paneling_settings
   integer, intent(out) :: errval
   character(80), intent(out) :: errmsg
 
