@@ -90,7 +90,6 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
 ! Constraints
 
-  character(4) :: seed_violation_handling
   double precision :: min_thickness, max_thickness, min_te_angle
   double precision :: min_camber, max_camber
   logical(kind=C_BOOL) :: check_curvature
@@ -151,7 +150,6 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 ! Other variables
 
   integer :: i, iunit, ioerr, iostat1
-  character(30) :: text
   integer :: nbot_actual, nmoment_constraint
   character :: choice
 
@@ -242,9 +240,17 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   call check_optimization_settings(optimization_settings, errval, errmsg)
   if (errval /= 0) return
 
+! Print optimization_settings
+
+  write(*,*)
+  write(*,*) 'Echoing program options:'
+  write(*,*)
+
+  call print_optimization_settings(optimization_settings)
+
 ! Set defaults for operating conditions
 
-  noppoint = 1
+  noppoint = 0
   use_flap = .false.
   x_flap = 0.75d0
   y_flap = 0.d0
@@ -286,26 +292,34 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   operating_points_settings%flap_degrees = flap_degrees
   operating_points_settings%weighting = weighting 
 
-! Operating points
+! Print operating_points_settings
+
+  call print_operating_points_settings(operating_points_settings,              &
+                                       max_op_points) 
+
+! Check operating_conditions namelist for errors
 
   call check_operating_points_settings(operating_points_settings,              &
                                        max_op_points, errval, errmsg)
   if (errval /= 0) return
 
+! Normalize weightings for operating points
+
+  weighting = weighting/sum(weighting(1:noppoint))
+
 ! Set defaults for constraints
 
-  seed_violation_handling = 'stop'
   min_thickness = 0.06d0
   max_thickness = 1000.d0
-  min_camber = -0.1d0
-  max_camber = 0.1d0
-  moment_constraint_type(:) = 'use_seed'
+  min_camber = -1000.d0
+  max_camber = 1000.d0
+  moment_constraint_type(:) = 'none'
   min_moment(:) = -1.d0
   min_te_angle = 5.d0
   check_curvature = .true.
   max_curv_reverse_top = 0
   max_curv_reverse_bot = 1
-  curv_threshold = 0.30d0
+  curv_threshold = 0.10d0
   symmetrical = .false.
   min_flap_degrees = -5.d0
   max_flap_degrees = 15.d0
@@ -316,6 +330,37 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   read(iunit, iostat=iostat1, nml=constraints)
   call namelist_check('constraints', iostat1, 'stop', errval, errmsg)
   if (errval /= 0) return
+
+! Populate constraints_settings derived type
+
+  constraints_settings%min_thickness = min_thickness
+  constraints_settings%max_thickness = max_thickness
+  constraints_settings%min_camber = min_camber
+  constraints_settings%max_camber = max_camber
+  constraints_settings%min_te_angle = min_te_angle
+  constraints_settings%check_curvature = check_curvature
+  constraints_settings%max_curv_reverse_top = max_curv_reverse_top
+  constraints_settings%max_curv_reverse_bot = max_curv_reverse_bot
+  constraints_settings%curv_threshold = curv_threshold
+  constraints_settings%max_flap_degrees = max_flap_degrees
+  constraints_settings%min_flap_degrees = min_flap_degrees
+  do i = 1, max_op_points
+    call convert_char_to_c(moment_constraint_type(i),                          &
+                           len(moment_constraint_type(i)),                     &
+                           constraints_settings%moment_constraint_type(:,i))
+  end do
+  constraints_settings%min_moment = min_moment
+
+! Check constraints namelist for errors
+
+  call check_constraints_settings(constraints_settings, nopppoint,             &
+                                  max_op_points, errval, errmsg)
+  if (errval /= 0) return
+
+! Print constraints_settings
+
+  call print_constraints_settings(constraints_settings, noppoint,              &
+                                  max_op_points)
 
 ! Store operating points where flap setting will be optimized. Also converts
 ! flap_selection to int array for easier passing to C.
@@ -330,10 +375,6 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 !      end if
 !    end do
 !  end if
-
-! Normalize weightings for operating points
-
-  weighting = weighting/sum(weighting(1:noppoint))
 
 !FIXME: this will have to be done in a different way
 ! Ask about removing pitching moment constraints for symmetrical optimization
@@ -362,44 +403,33 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   call namelist_check('initialization', iostat1, 'warn', errval, errmsg)
   if (errval /= 0) return
 
-! Set default particle swarm options
+! Populate initialization_settings derived type
 
-  pso_pop = 40
-  pso_tol = 1.D-04
-  pso_maxit = 700
-  pso_convergence_profile = 'exhaustive'
+  initialization_settings%feasible_init = feasible_init
+  initialization_settings%feasible_limit = feasible_limit
+  initialization_settings%feasible_init_attempts = feasible_init_attempts
 
-! Set default genetic algorithm options
+! Check initialization_settings namelist for errors
 
-  ga_pop = 80
-  ga_tol = 1.D-04
-  ga_maxit = 700
-  parents_selection_method = 'tournament'
-  parent_fraction = 0.5d0
-  roulette_selection_pressure = 8.d0
-  tournament_fraction = 0.025d0
-  crossover_range_factor = 0.5d0
-  mutant_probability = 0.4d0
-  chromosome_mutation_rate = 0.01d0
-  mutation_range_factor = 0.2d0
+  call check_initialization_settings(initialization_settings, errval, errmsg)
+  if (errval /= 0) return
 
-! Set default simplex search options
+! Print initialization_settings
 
-  simplex_tol = 1.0D-05
-  simplex_maxit = 1000
+  call print_initialization_settings(initialization_settings)
 
   if (trim(search_type) == 'global_and_local' .or. trim(search_type) ==        &
       'global') then
 
-!   The number of bottom shape functions actually used (0 for symmetrical)
-
-    if (symmetrical) then
-      nbot_actual = 0
-    else
-      nbot_actual = nfunctions_bot
-    end if
-  
 !FIXME: this should go somewhere else, called by initialize
+!!   The number of bottom shape functions actually used (0 for symmetrical)
+!
+!    if (symmetrical) then
+!      nbot_actual = 0
+!    else
+!      nbot_actual = nfunctions_bot
+!    end if
+!  
 !!   Set design variables with side constraints
 !
 !    if (trim(shape_functions) == 'naca') then
@@ -439,7 +469,14 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
     if (trim(global_search) == 'particle_swarm') then
 
-!     Read PSO options and put them into derived type
+!     Set default particle swarm options
+
+      pso_pop = 40
+      pso_tol = 1.D-04
+      pso_maxit = 700
+      pso_convergence_profile = 'exhaustive'
+
+!     Read PSO options
 
       rewind(iunit)
       read(iunit, iostat=iostat1, nml=particle_swarm_options)
@@ -447,15 +484,77 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
                           errmsg)
       if (errval /= 0) return
 
+!     Populate particle_swarm_settings derived type
+
+      particle_swarm_settings%pso_pop = pso_pop
+      particle_swarm_settings%pso_tol = pso_tol
+      particle_swarm_settings%pso_maxit = pso_maxit
+      call convert_char_to_c(pso_convergence_profile,                          &
+                             len(pso_convergence_profile),                     &
+                             particle_swarm_settings%pso_convergence_profile)
+
+!     Check PSO settings for errors
+
+      call check_particle_swarm_settings(particle_swarm_settings, errval,      &
+                                         errmsg)
+      if (errval /= 0) return
+
+!     Print particle_swarm_settings
+
+      call print_particle_swarm_settings(particle_swarm_settings)
+
     else if (trim(global_search) == 'genetic_algorithm') then
 
-!     Read genetic algorithm options and put them into derived type
+!     Set default genetic algorithm options
+
+      ga_pop = 80
+      ga_tol = 1.D-04
+      ga_maxit = 700
+      parents_selection_method = 'tournament'
+      parent_fraction = 0.5d0
+      roulette_selection_pressure = 8.d0
+      tournament_fraction = 0.025d0
+      crossover_range_factor = 0.5d0
+      mutant_probability = 0.4d0
+      chromosome_mutation_rate = 0.01d0
+      mutation_range_factor = 0.2d0
+
+!     Read genetic algorithm options
 
       rewind(iunit)
       read(iunit, iostat=iostat1, nml=genetic_algorithm_options)
       call namelist_check('genetic_algorithm_options', iostat1, 'warn', errval,&
                           errmsg)
       if (errval /= 0) return
+
+!     Populate genetic_algorithm_settings derived type
+    
+      genetic_algorithm_settings%ga_pop = ga_pop
+      genetic_algorithm_settings%ga_tol = ga_tol
+      genetic_algorithm_settings%ga_maxit = ga_maxit
+      call convert_char_to_c(parents_selection_method,                         &
+                            len(parents_selection_method),                     &
+                            genetic_algorithm_settings%parents_selection_method)
+      genetic_algorithm_settings%parent_fraction = parent_fraction
+      genetic_algorithm_settings%roulette_selection_pressure =                 &
+                                                     roulette_selection_pressure
+      genetic_algorithm_settings%tournament_fraction = tournament_fraction
+      genetic_algorithm_settings%crossover_range_factor = crossover_range_factor
+      genetic_algorithm_settings%mutant_probability = mutant_probability
+      genetic_algorithm_settings%chromosome_mutation_rate =                    &
+                                                        chromosome_mutation_rate
+      genetic_algorithm_settings%mutation_range_factor = mutation_range_factor
+  
+!     Check genetic algorithm settings for errors
+
+      call check_genetic_algorithm_settings(genetic_algorithm_settings, errval,&
+                                            errmsg)
+      if (errval /= 0) return
+
+!     Print genetic_algorithm_settings
+
+      call print_genetic_algorithm_settings(genetic_algorithm_settings)
+
     else
 
       errval = 1
@@ -472,6 +571,11 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
     if (trim(local_search) == 'simplex') then
 
+!     Set default simplex search options
+
+      simplex_tol = 1.0D-05
+      simplex_maxit = 1000
+
 !     Read simplex search options and put them into derived type
 
       rewind(iunit)
@@ -479,6 +583,20 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
       call namelist_check('simplex_options', iostat1, 'warn', errval, errmsg)
       if (errval /= 0) return
 
+!     Populate simplex_settings derived type
+
+      simplex_settings%simplex_tol = simplex_tol
+      simplex_settings%simplex_maxit = simplex_maxit
+
+!     Check simplex settings for errors
+
+      call check_simplex_settings(simplex_settings, errval, errmsg)
+      if (errval /= 0) return
+
+!     Print simplex_settings
+
+      call print_simplex_settings(simplex_settings)
+  
     else
 
       errval = 1
@@ -490,7 +608,7 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
   end if 
 
-! Set default xfoil aerodynamics and paneling options
+! Set default xfoil aerodynamics
 
   ncrit = 9.d0
   xtript = 1.d0
@@ -502,95 +620,12 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   fix_unconverged = .true.
   reinitialize = .true.
 
-  npan = 160
-  cvpar = 1.d0
-  cterat = 0.15d0
-  ctrrat = 0.2d0
-  xsref1 = 1.d0
-  xsref2 = 1.d0
-  xpref1 = 1.d0
-  xpref2 = 1.d0
-
 ! Read xfoil options
 
   rewind(iunit)
   read(iunit, iostat=iostat1, nml=xfoil_run_options)
   call namelist_check('xfoil_run_options', iostat1, 'warn', errval, errmsg)
   if (errval /= 0) return
-  rewind(iunit)
-  read(iunit, iostat=iostat1, nml=xfoil_paneling_options)
-  call namelist_check('xfoil_paneling_options', iostat1, 'warn', errval, errmsg)
-  if (errval /= 0) return
-
-! Option to match seed airfoil to another instead of aerodynamic optimization
-
-  match_foils = .false.
-  matchfoil_file = 'none'
-  read(iunit, iostat=iostat1, nml=matchfoil_options)
-  call namelist_check('matchfoil_options', iostat1, 'warn', errval, errmsg)
-  if (errval /= 0) return
-
-! Close the input file
-
-  close(iunit)
-
-! Populate constraints_settings derived type
-
-  call convert_char_to_c(seed_violation_handling, len(seed_violation_handling),&
-                         constraints_settings%seed_violation_handling)
-  constraints_settings%min_thickness = min_thickness
-  constraints_settings%max_thickness = max_thickness
-  constraints_settings%min_camber = min_camber
-  constraints_settings%max_camber = max_camber
-  constraints_settings%min_te_angle = min_te_angle
-  constraints_settings%check_curvature = check_curvature
-  constraints_settings%max_curv_reverse_top = max_curv_reverse_top
-  constraints_settings%max_curv_reverse_bot = max_curv_reverse_bot
-  constraints_settings%curv_threshold = curv_threshold
-  constraints_settings%max_flap_degrees = max_flap_degrees
-  constraints_settings%min_flap_degrees = min_flap_degrees
-  do i = 1, max_op_points
-    call convert_char_to_c(moment_constraint_type(i),                          &
-                           len(moment_constraint_type(i)),                     &
-                           constraints_settings%moment_constraint_type(:,i))
-  end do
-  constraints_settings%min_moment = min_moment
-
-! Populate initialization_settings derived type
-
-  initialization_settings%feasible_init = feasible_init
-  initialization_settings%feasible_limit = feasible_limit
-  initialization_settings%feasible_init_attempts = feasible_init_attempts
-
-! Populate particle_swarm_settings derived type
-
-  particle_swarm_settings%pso_pop = pso_pop
-  particle_swarm_settings%pso_tol = pso_tol
-  particle_swarm_settings%pso_maxit = pso_maxit
-  call convert_char_to_c(pso_convergence_profile, len(pso_convergence_profile),&
-                         particle_swarm_settings%pso_convergence_profile)
-  
-! Populate genetic_algorithm_settings derived type
-
-  genetic_algorithm_settings%ga_pop = ga_pop
-  genetic_algorithm_settings%ga_tol = ga_tol
-  genetic_algorithm_settings%ga_maxit = ga_maxit
-  call convert_char_to_c(parents_selection_method,                             &
-                         len(parents_selection_method),                        &
-                         genetic_algorithm_settings%parents_selection_method)
-  genetic_algorithm_settings%parent_fraction = parent_fraction
-  genetic_algorithm_settings%roulette_selection_pressure =                     &
-                                                     roulette_selection_pressure
-  genetic_algorithm_settings%tournament_fraction = tournament_fraction
-  genetic_algorithm_settings%crossover_range_factor = crossover_range_factor
-  genetic_algorithm_settings%mutant_probability = mutant_probability
-  genetic_algorithm_settings%chromosome_mutation_rate = chromosome_mutation_rate
-  genetic_algorithm_settings%mutation_range_factor = mutation_range_factor
-  
-! Populate simplex_settings derived type
-
-  simplex_settings%simplex_tol = simplex_tol
-  simplex_settings%simplex_maxit = simplex_maxit
 
 ! Populate xfoil_settings derived type
 
@@ -603,7 +638,34 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   xfoil_settings%vaccel = vaccel
   xfoil_settings%fix_unconverged = fix_unconverged
   xfoil_settings%reinitialize = reinitialize
+
+! Check xfoil aerodynamic settings for errors
   
+  call check_xfoil_settings(xfoil_settings, errval, errmsg)
+  if (errval /= 0) return
+
+! Print xfoil_settings
+
+  call print_xfoil_settings(xfoil_settings)
+
+! Set defaults for xfoil paneling settings
+
+  npan = 160
+  cvpar = 1.d0
+  cterat = 0.15d0
+  ctrrat = 0.2d0
+  xsref1 = 1.d0
+  xsref2 = 1.d0
+  xpref1 = 1.d0
+  xpref2 = 1.d0
+
+! Read xfoil_paneling_settings
+
+  rewind(iunit)
+  read(iunit, iostat=iostat1, nml=xfoil_paneling_options)
+  call namelist_check('xfoil_paneling_options', iostat1, 'warn', errval, errmsg)
+  if (errval /= 0) return
+
 ! Populate xfoil_paneling_settings derived type
 
   xfoil_paneling_settings%npan = npan
@@ -615,295 +677,40 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
   xfoil_paneling_settings%xpref1 = xpref1
   xfoil_paneling_settings%xpref2 = xpref2
 
+! Check xfoil_paneling_settings for errors
+
+  call check_xfoil_paneling_settings(xfoil_paneling_settings, errval, errmsg)
+  if (errval /= 0) return
+
+! Print xfoil_paneling_settings
+
+  call print_xfoil_paneling_settings(xfoil_paneling_settings)
+
+! Set defaults for matchfoil_settings
+
+  match_foils = .false.
+  matchfoil_file = 'none'
+
+! Read matchfoil_settings
+
+  rewind(iunit)
+  read(iunit, iostat=iostat1, nml=matchfoil_options)
+  call namelist_check('matchfoil_options', iostat1, 'warn', errval, errmsg)
+  if (errval /= 0) return
+
 ! Populate matchfoil_settings derived type
 
   matchfoil_settings%match_foils = match_foils
   call convert_char_to_c(matchfoil_file, len(matchfoil_file),                  &
                          matchfoil_settings%matchfoil_file)
 
-! Echo namelist options for checking purposes
+! Print matchfoil_settings
 
-  write(*,*)
-  write(*,*) 'Echoing program options:'
-  write(*,*)
+  call print_matchfoil_settings(matchfoil_settings)
 
-! Optimization options namelist
+! Close the input file
 
-  write(*,'(A)') " &optimization_options"
-  write(*,*) " search_type = '"//trim(search_type)//"'"
-  write(*,*) " global_search = '"//trim(global_search)//"'"
-  write(*,*) " local_search = '"//trim(local_search)//"'"
-  write(*,*) " seed_airfoil = '"//trim(seed_airfoil)//"'"
-  write(*,*) " airfoil_file = '"//trim(airfoil_file)//"'"
-  write(*,*) " naca_digits = '"//trim(naca_digits)//"'"
-  write(*,*) " shape_functions = '"//trim(shape_functions)//"'"
-  write(*,*) " min_bump_width = ", min_bump_width
-  write(*,*) " nfunctions_top = ", nfunctions_top
-  write(*,*) " nfunctions_bot = ", nfunctions_bot
-  write(*,*) " initial_perturb = ", initial_perturb
-  write(*,*) " restart = ", restart
-  write(*,*) " restart_write_freq = ", restart_write_freq
-  write(*,*) " write_designs = ", write_designs
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Operating conditions namelist
-
-  write(*,'(A)') " &operating_conditions"
-  write(*,*) " noppoint = ", noppoint
-  write(*,*) " use_flap = ", use_flap
-  write(*,*) " x_flap = ", x_flap
-  write(*,*) " y_flap = ", y_flap
-  write(*,*)
-  do i = 1, noppoint
-    write(text,*) i
-    text = adjustl(text)
-    write(*,*) " optimization_type("//trim(text)//") = '"//                    &
-               trim(optimization_type(i))//"'"
-    write(*,*) " op_mode("//trim(text)//") = '"//trim(op_mode(i))//"'"
-    write(*,*) " op_point("//trim(text)//") = ", op_point(i)
-    write(*,'(A,es17.8)') "  reynolds("//trim(text)//") = ", reynolds(i)
-    write(*,*) " mach("//trim(text)//") = ", mach(i)
-    write(*,*) " flap_selection("//trim(text)//") = '"//                       &
-               trim(flap_selection(i))//"'"
-    write(*,*) " flap_degrees("//trim(text)//") = ", flap_degrees(i)
-    write(*,*) " weighting("//trim(text)//") = ", weighting(i)
-    if (i < noppoint) write(*,*)
-  end do
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Constraints namelist
-
-  write(*,'(A)') " &constraints"
-  write(*,*) " min_thickness = ", min_thickness
-  write(*,*) " max_thickness = ", max_thickness
-  do i = 1, noppoint
-    write(text,*) i
-    text = adjustl(text)
-    write(*,*) " moment_constraint_type("//trim(text)//") = "//                &
-               trim(moment_constraint_type(i))
-    write(*,*) " min_moment("//trim(text)//") = ", min_moment(i)
-  end do
-  write(*,*) " min_te_angle = ", min_te_angle
-  write(*,*) " check_curvature = ", check_curvature
-  write(*,*) " max_curv_reverse_top = ", max_curv_reverse_top
-  write(*,*) " max_curv_reverse_bot = ", max_curv_reverse_bot
-  write(*,*) " curv_threshold = ", curv_threshold
-  write(*,*) " symmetrical = ", symmetrical
-  write(*,*) " min_flap_degrees = ", min_flap_degrees
-  write(*,*) " max_flap_degrees = ", max_flap_degrees
-  write(*,*) " min_camber = ", min_camber
-  write(*,*) " max_camber = ", max_camber
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Initialization namelist
-
-  write(*,'(A)') " &initialization"
-  write(*,*) " feasible_init = ", feasible_init
-  write(*,*) " feasible_limit = ", feasible_limit
-  write(*,*) " feasible_init_attempts = ", feasible_init_attempts
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Optimizer namelists
-
-  if (trim(search_type) == 'global_and_local' .or. trim(search_type) ==        &
-      'global') then
-
-    if (trim(global_search) == 'particle_swarm') then
-
-!     Particle swarm namelist
-
-      write(*,'(A)') " &particle_swarm_options"
-      write(*,*) " pso_pop = ", pso_pop
-      write(*,*) " pso_tol = ", pso_tol
-      write(*,*) " pso_maxit = ", pso_maxit
-      write(*,*) " pso_convergence_profile = ", pso_convergence_profile
-      write(*,'(A)') " /"
-      write(*,*)
-
-    else if (trim(global_search) == 'genetic_algorithm') then
-
-!     Genetic algorithm options
-
-      write(*,'(A)') " &genetic_algorithm_options"
-      write(*,*) " ga_pop = ", ga_pop
-      write(*,*) " ga_tol = ", ga_tol
-      write(*,*) " ga_maxit = ", ga_maxit
-      write(*,*) " parents_selection_method = ", parents_selection_method
-      write(*,*) " parent_fraction = ", parent_fraction
-      write(*,*) " roulette_selection_pressure = ", roulette_selection_pressure
-      write(*,*) " tournament_fraction = " , tournament_fraction
-      write(*,*) " crossover_range_factor = ", crossover_range_factor
-      write(*,*) " mutant_probability = ", mutant_probability
-      write(*,*) " chromosome_mutation_rate = ", chromosome_mutation_rate
-      write(*,*) " mutation_range_factor = ", mutation_range_factor
-      write(*,'(A)') " /"
-      write(*,*)
-
-    end if
-
-  end if
-
-  if (trim(search_type) == 'global_and_local' .or. trim(search_type) ==        &
-      'local') then
-
-    if(trim(local_search) == 'simplex') then
-
-!     Simplex search namelist
-
-      write(*,'(A)') " &simplex_options"
-      write(*,*) " simplex_tol = ", simplex_tol
-      write(*,*) " simplex_maxit = ", simplex_maxit
-      write(*,'(A)') " /"
-      write(*,*)
-
-    end if
-
-  end if
-
-! Xfoil run options namelist
-
-  write(*,'(A)') " &xfoil_run_options"
-  write(*,*) " ncrit = ", ncrit
-  write(*,*) " xtript = ", xtript
-  write(*,*) " xtripb = ", xtripb
-  write(*,*) " viscous_mode = ", viscous_mode
-  write(*,*) " silent_mode = ", silent_mode
-  write(*,*) " bl_maxit = ", bl_maxit
-  write(*,*) " vaccel = ", vaccel
-  write(*,*) " fix_unconverged = ", fix_unconverged
-  write(*,*) " reinitialize = ", reinitialize
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Xfoil paneling options namelist
-
-  write(*,'(A)') " &xfoil_paneling_options"
-  write(*,*) " npan = ", npan
-  write(*,*) " cvpar = ", cvpar
-  write(*,*) " cterat = ", cterat
-  write(*,*) " ctrrat = ", ctrrat
-  write(*,*) " xsref1 = ", xsref1
-  write(*,*) " xsref2 = ", xsref2
-  write(*,*) " xpref1 = ", xpref1
-  write(*,*) " xpref2 = ", xpref2
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Matchfoil options
-
-  write(*,'(A)') " &matchfoil_options"
-  write(*,*) " match_foils = ", match_foils
-  write(*,*) " matchfoil_file = '"//trim(matchfoil_file)//"'"
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Constraints
-
-  call check_constraints_settings(constraints_settings, noppoint,              &
-                                  max_op_points, errval, errmsg)
-  if (errval /= 0) return
-
-! Initialization options
-    
-  call check_initialization_settings(initialization_settings, errval, errmsg)
-  if (errval /= 0) return
-
-! Optimizer options
-
-  if (trim(search_type) == 'global' .or.                                       &
-      trim(search_type) == 'global_and_local') then
-
-    if (trim(global_search) == 'particle_swarm') then
-
-!     Particle swarm options
-
-      call check_particle_swarm_settings(particle_swarm_settings, errval,      &
-                                         errmsg)
-      if (errval /= 0) return
-
-    else if (trim(global_search) == 'genetic_algorithm') then
-
-!     Genetic algorithm options
-
-      call check_genetic_algorithm_settings(genetic_algorithm_settings, errval,&
-                                            errmsg)
-      if (errval /= 0) return
-
-    end if
-
-  end if
-
-  if (trim(search_type) == 'local' .or.                                        &
-       trim(search_type) == 'global_and_local') then
-
-!   Simplex options
-
-    call check_simplex_settings(simplex_settings, errval, errmsg)
-    if (errval /= 0) return
-  
-  end if
-
-! XFoil run options
-
-  call check_xfoil_settings(xfoil_settings, errval, errmsg)
-  if (errval /= 0) return
-
-! XFoil paneling options
-
-  if (npan < 20) then
-    errval = 1
-    errmsg = "npan must be >= 20."
-    return
-  end if
-  if (cvpar <= 0.d0) then
-    errval = 1
-    errmsg = "cvpar must be > 0."
-    return
-  end if
-  if (cterat <= 0.d0) then
-    errval = 1
-    errmsg = "cterat must be > 0."
-    return
-  end if
-  if (ctrrat <= 0.d0) then
-    errval = 1
-    errmsg = "ctrrat must be > 0."
-    return
-  end if
-  if (xsref1 < 0.d0) then
-    errval = 1
-    errmsg = "xsref1 must be >= 0."
-    return
-  end if
-  if (xsref2 < xsref1) then
-    errval = 1
-    errmsg = "xsref2 must be >= xsref1"
-    return
-  end if
-  if (xsref2 > 1.d0) then
-    errval = 1
-    errmsg = "xsref2 must be <= 1."
-    return
-  end if
-  if (xpref1 < 0.d0) then
-    errval = 1
-    errmsg = "xpref1 must be >= 0."
-    return
-  end if
-  if (xpref2 < xpref1) then
-    errval = 1
-    errmsg = "xpref2 must be >= xpref1"
-    return
-  end if
-  if (xpref2 > 1.d0) then
-    errval = 1
-    errmsg = "xpref2 must be <= 1."
-    return
-  end if
+  close(iunit)
 
 end subroutine read_inputs
 
@@ -1195,6 +1002,8 @@ subroutine check_optimization_settings(optimization_settings, errval, errmsg)
   character(80), intent(out) :: errmsg
 
   character(16) :: search_type
+  character(17) :: global_search
+  character(7) :: local_search
   character(10) :: seed_airfoil
   character(11) :: shape_functions
 
@@ -1206,6 +1015,12 @@ subroutine check_optimization_settings(optimization_settings, errval, errmsg)
   call convert_char_to_fortran(optimization_settings%search_type,              &
                                size(optimization_settings%search_type,1),      &
                                search_type)
+  call convert_char_to_fortran(optimization_settings%global_search,            &
+                               size(optimization_settings%global_search,1),    &
+                               global_search)
+  call convert_char_to_fortran(optimization_settings%local_search,             &
+                               size(optimization_settings%local_search,1),     &
+                               local_search)
   call convert_char_to_fortran(optimization_settings%seed_airfoil,             &
                                size(optimization_settings%seed_airfoil,1),     &
                                seed_airfoil)
@@ -1221,7 +1036,17 @@ subroutine check_optimization_settings(optimization_settings, errval, errmsg)
     errmsg = "search_type must be 'global_and_local', 'global', or 'local.'"
     return
   end if
-
+  if (trim(global_search) /= 'particle_swarm' .and.                            &
+      trim(global_search) /= 'genetic_algorithm') then
+    errval = 1
+    errmsg = "global_search must be 'particle_swarm' or 'genetic_algorithm'."
+    return
+  end if
+  if (trim(local_search) /= 'simplex') then
+    errval = 1
+    errmsg = "local_search must be 'simplex'."
+    return
+  end if
   if (trim(seed_airfoil) /= 'from_file' .and.                                  &
       trim(seed_airfoil) /= 'four_digit') then
     errval = 1
@@ -1256,6 +1081,70 @@ subroutine check_optimization_settings(optimization_settings, errval, errmsg)
   end if
 
 end subroutine check_optimization_settings
+
+!=============================================================================80
+!
+! Prints optimization settings
+!
+!=============================================================================80
+subroutine print_optimization_settings(optimization_settings)
+
+  use types, only : optimization_settings_type
+  use util,  only : convert_char_to_fortran
+
+  type(optimization_settings_type), intent(in) :: optimization_settings
+
+  character(16) :: search_type
+  character(17) :: global_search
+  character(7) :: local_search
+  character(10) :: seed_airfoil
+  character(80) :: airfoil_file
+  character(4) :: naca_digits
+  character(11) :: shape_functions
+
+! Convert char arrays to fortran strings
+
+  call convert_char_to_fortran(optimization_settings%search_type,              &
+                               size(optimization_settings%search_type,1),      &
+                               search_type)
+  call convert_char_to_fortran(optimization_settings%global_search,            &
+                               size(optimization_settings%global_search,1),    &
+                               global_search)
+  call convert_char_to_fortran(optimization_settings%local_search,             &
+                               size(optimization_settings%local_search,1),     &
+                               local_search)
+  call convert_char_to_fortran(optimization_settings%seed_airfoil,             &
+                               size(optimization_settings%seed_airfoil,1),     &
+                               seed_airfoil)
+  call convert_char_to_fortran(optimization_settings%airfoil_file,             &
+                               size(optimization_settings%airfoil_file,1),     &
+                               airfoil_file)
+  call convert_char_to_fortran(optimization_settings%naca_digits,              &
+                               size(optimization_settings%naca_digits,1),      &
+                               naca_digits)
+  call convert_char_to_fortran(optimization_settings%shape_functions,          &
+                               size(optimization_settings%shape_functions,1),  &
+                               shape_functions)
+
+  write(*,'(A)') " &optimization_options"
+  write(*,*) " search_type = '"//trim(search_type)//"'"
+  write(*,*) " global_search = '"//trim(global_search)//"'"
+  write(*,*) " local_search = '"//trim(local_search)//"'"
+  write(*,*) " seed_airfoil = '"//trim(seed_airfoil)//"'"
+  write(*,*) " airfoil_file = '"//trim(airfoil_file)//"'"
+  write(*,*) " naca_digits = '"//trim(naca_digits)//"'"
+  write(*,*) " shape_functions = '"//trim(shape_functions)//"'"
+  write(*,*) " min_bump_width = ", optimization_settings%min_bump_width
+  write(*,*) " nfunctions_top = ", optimization_settings%nfunctions_top
+  write(*,*) " nfunctions_bot = ", optimization_settings%nfunctions_bot
+  write(*,*) " initial_perturb = ", optimization_settings%initial_perturb
+  write(*,*) " restart = ", optimization_settings%restart
+  write(*,*) " restart_write_freq = ", optimization_settings%restart_write_freq
+  write(*,*) " write_designs = ", optimization_settings%write_designs
+  write(*,'(A)') " /"
+  write(*,*)
+
+end subroutine print_optimization_settings
 
 !=============================================================================80
 !
@@ -1367,6 +1256,70 @@ end subroutine check_operating_points_settings
 
 !=============================================================================80
 !
+! Prints operating points settings
+!
+!=============================================================================80
+subroutine print_operating_points_settings(operating_points_settings,          &
+                                           max_op_points)
+
+  use types, only : operating_points_settings_type
+  use util,  only : convert_char_to_fortran
+
+  type(operating_points_settings_type), intent(in) :: operating_points_settings
+  integer, intent(in) :: max_op_points
+
+  integer :: i
+  character(30) :: text
+  character(7), dimension(max_op_points) :: op_mode
+  character(9), dimension(max_op_points) :: optimization_type
+  character(8), dimension(max_op_points) :: flap_selection
+
+! Convert char arrays to fortran strings
+
+  do i = 1, max_op_points
+    call convert_char_to_fortran(operating_points_settings%op_mode(:,i),       &
+                                 size(operating_points_settings%op_mode,1),    &
+                                 op_mode(i))
+    call convert_char_to_fortran(                                              &
+                           operating_points_settings%optimization_type(:,i),   &
+                           size(operating_points_settings%optimization_type,1),&
+                           optimization_type(i))
+    call convert_char_to_fortran(                                              &
+                              operating_points_settings%flap_selection(:,i),   &
+                              size(operating_points_settings%flap_selection,1),&
+                              flap_selection(i))
+  end do
+
+  write(*,'(A)') " &operating_conditions"
+  write(*,*) " noppoint = ", operating_points_settings%noppoint
+  write(*,*) " use_flap = ", operating_points_settings%use_flap
+  write(*,*) " x_flap = ", operating_points_settings%x_flap
+  write(*,*) " y_flap = ", operating_points_settings%y_flap
+  write(*,*)
+  do i = 1, operating_points_settings%noppoint
+    write(text,*) i
+    text = adjustl(text)
+    write(*,*) " optimization_type("//trim(text)//") = '"//                    &
+               trim(optimization_type(i))//"'"
+    write(*,*) " op_mode("//trim(text)//") = '"//trim(op_mode(i))//"'"
+    write(*,*) " op_point("//trim(text)//") = ", op_point(i)
+    write(*,'(A,es17.8)') "  reynolds("//trim(text)//") = ",                   &
+                          operating_points_settings%reynolds(i)
+    write(*,*) " mach("//trim(text)//") = ", operating_points_settings%mach(i)
+    write(*,*) " flap_selection("//trim(text)//") = '"//                       &
+               trim(flap_selection(i))//"'"
+    write(*,*) " flap_degrees("//trim(text)//") = ",                           &
+               operating_points_settings%flap_degrees(i)
+    write(*,*) " weighting("//trim(text)//") = ", weighting(i)
+    if (i < noppoint) write(*,*)
+  end do
+  write(*,'(A)') " /"
+  write(*,*)
+
+end subroutine print_operating_points_settings
+
+!=============================================================================80
+!
 ! Checks constraints_settings type for valid entries
 !
 !=============================================================================80
@@ -1382,7 +1335,6 @@ subroutine check_constraints_settings(constraints_settings, noppoint,          &
   character(80), intent(out) :: errmsg
 
   integer :: i
-  character(4) :: seed_violation_handling
   character(8), dimension(max_op_points) :: moment_constraint_type
 
   errval = 0
@@ -1390,9 +1342,6 @@ subroutine check_constraints_settings(constraints_settings, noppoint,          &
 
 ! Convert char arrays to fortran strings
 
-  call convert_char_to_fortran(constraints_settings%seed_violation_handling,   &
-                          size(constraints_settings%seed_violation_handling,1),&
-                          seed_violation_handling)
   do i = 1, max_op_points
     call convert_char_to_fortran(                                              &
                            constraints_settings%moment_constraint_type(:,i),   &
@@ -1400,12 +1349,6 @@ subroutine check_constraints_settings(constraints_settings, noppoint,          &
                            moment_constraint_type(i))
   end do
 
-  if (trim(seed_violation_handling) /= 'stop' .and.                            &
-      trim(seed_violation_handling) /= 'warn') then
-    errval = 1
-    errmsg = "seed_violation_handling must be 'stop' or 'warn'."
-    return
-  end if
   if (constraints_settings%min_thickness <= 0.d0) then
     errval = 1
     errmsg = "min_thickness must be > 0."
@@ -1414,6 +1357,17 @@ subroutine check_constraints_settings(constraints_settings, noppoint,          &
   if (constraints_settings%max_thickness <= 0.d0) then
     errval = 1
     errmsg = "max_thickness must be > 0."
+    return
+  end if
+  if (constraints_settings%min_thickness >=                                    &
+      constraints_settings%max_thickness) then
+    errval = 1
+    errmsg = "min_thickness must be less than max_thickness."
+    return
+  end if
+  if (constraints_settings%min_camber >= constraints_settings%max_camber) then
+    errval = 1
+    errmsg = "min_camber must be less than max_camber."
     return
   end if
   do i = 1, noppoint
@@ -1469,6 +1423,60 @@ end subroutine check_constraints_settings
 
 !=============================================================================80
 !
+! Prints constraints_settings
+!
+!=============================================================================80
+subroutine print_constraints_settings(constraints_settings, noppoint,          &
+                                      max_op_points)
+
+  use types, only : constraints_settings_type
+  use util,  only : convert_char_to_fortran
+
+  type(constraints_settings_type), intent(in) :: constraints_settings
+  integer, intent(in) :: noppoint, max_op_points
+
+  integer :: i
+  character(30) :: text
+  character(8), dimension(max_op_points) :: moment_constraint_type
+
+! Convert char arrays to fortran strings
+
+  do i = 1, max_op_points
+    call convert_char_to_fortran(                                              &
+                           constraints_settings%moment_constraint_type(:,i),   &
+                           size(constraints_settings%moment_constraint_type,1),&
+                           moment_constraint_type(i))
+  end do
+  write(*,'(A)') " &constraints"
+  write(*,*) " min_thickness = ", constraints_settings%min_thickness
+  write(*,*) " max_thickness = ", constraints_settings%max_thickness
+  do i = 1, noppoint
+    write(text,*) i
+    text = adjustl(text)
+    write(*,*) " moment_constraint_type("//trim(text)//") = "//                &
+               trim(moment_constraint_type(i))
+    write(*,*) " min_moment("//trim(text)//") = ",                             &
+               constraint_settings%min_moment(i)
+  end do
+  write(*,*) " min_te_angle = ", constraint_settings%min_te_angle
+  write(*,*) " check_curvature = ", constraint_settings%check_curvature
+  write(*,*) " max_curv_reverse_top = ",                                       &
+                                        constraint_settings%max_curv_reverse_top
+  write(*,*) " max_curv_reverse_bot = ",                                       &
+                                        constraint_settings%max_curv_reverse_bot
+  write(*,*) " curv_threshold = ", constraint_settings%curv_threshold
+  write(*,*) " symmetrical = ", constraint_settings%symmetrical
+  write(*,*) " min_flap_degrees = ", constraint_settings%min_flap_degrees
+  write(*,*) " max_flap_degrees = ", constraint_settings%max_flap_degrees
+  write(*,*) " min_camber = ", constraint_settings%min_camber
+  write(*,*) " max_camber = ", constraint_settings%max_camber
+  write(*,'(A)') " /"
+  write(*,*)
+
+end subroutine print_constraints_settings
+
+!=============================================================================80
+!
 ! Checks initialization_settings type for valid entries
 !
 !=============================================================================80
@@ -1498,6 +1506,27 @@ subroutine check_initialization_settings(initialization_settings, errval,      &
   end if
 
 end subroutine check_initialization_settings
+
+!=============================================================================80
+!
+! Prints initialization_settings
+!
+!=============================================================================80
+subroutine print_initialization_settings(initialization_settings)
+
+  use types, only : initialization_settings_type
+
+  type(initialization_settings_type), intent(in) :: initialization_settings
+
+  write(*,'(A)') " &initialization"
+  write(*,*) " feasible_init = ", initialization_settings%feasible_init
+  write(*,*) " feasible_limit = ", initialization_settings%feasible_limit
+  write(*,*) " feasible_init_attempts = ",                                     &
+                                  initialization_settings%feasible_init_attempts
+  write(*,'(A)') " /"
+  write(*,*)
+
+end subroutine print_initialization_settings
 
 !=============================================================================80
 !
@@ -1548,6 +1577,36 @@ subroutine check_particle_swarm_settings(particle_swarm_settings, errval,      &
   end if
 
 end subroutine check_particle_swarm_settings
+
+!=============================================================================80
+!
+! Prints particle_swarm_settings
+!
+!=============================================================================80
+subroutine print_particle_swarm_settings(particle_swarm_settings)
+
+  use types, only : particle_swarm_settings_type
+
+  type(particle_swarm_settings_type), intent(in) :: particle_swarm_settings
+
+  character(10) :: pso_convergence_profile
+
+! Convert char arrays to fortran strings
+
+  call convert_char_to_fortran(particle_swarm_settings%pso_convergence_profile,&
+                       size(particle_swarm_settings%pso_convergence_profile,1),&
+                       pso_convergence_profile)
+
+  write(*,'(A)') " &particle_swarm_options"
+  write(*,*) " pso_pop = ", particle_swarm_settings%pso_pop
+  write(*,*) " pso_tol = ", particle_swarm_settings%pso_tol
+  write(*,*) " pso_maxit = ", particle_swarm_settings%pso_maxit
+  write(*,*) " pso_convergence_profile = ",                                    &
+             particle_swarm_settings%pso_convergence_profile
+  write(*,'(A)') " /"
+  write(*,*)
+
+end subroutine print_particle_swarm_settings
 
 !=============================================================================80
 !
@@ -1642,6 +1701,50 @@ end subroutine check_genetic_algorithm_settings
 
 !=============================================================================80
 !
+! Prints genetic_algorithm_settings
+!
+!=============================================================================80
+subroutine print_genetic_algorithm_settings(genetic_algorithm_settings)
+
+  use types, only : genetic_algorithm_settings_type
+
+  type(genetic_algorithm_settings_type), intent(in) ::                         &
+                                                      genetic_algorithm_settings
+
+  character(10) :: parents_selection_method
+
+! Convert char arrays to fortran strings
+
+  call convert_char_to_fortran(                                                &
+                   genetic_algorithm_settings%parents_selection_method,        &
+                   size(genetic_algorithm_settings%parents_selection_method,1),&
+                   parents_selection_method)
+
+  write(*,'(A)') " &genetic_algorithm_options"
+  write(*,*) " ga_pop = ", genetic_algorithm_settings%ga_pop
+  write(*,*) " ga_tol = ", genetic_algorithm_settings%ga_tol
+  write(*,*) " ga_maxit = ", genetic_algorithm_settings%ga_maxit
+  write(*,*) " parents_selection_method = ", parents_selection_method
+  write(*,*) " parent_fraction = ", genetic_algorithm_settings%parent_fraction
+  write(*,*) " roulette_selection_pressure = ",                                &
+                          genetic_algorithm_settings%roulette_selection_pressure
+  write(*,*) " tournament_fraction = " ,                                       &
+                                  genetic_algorithm_settings%tournament_fraction
+  write(*,*) " crossover_range_factor = ",                                     &
+                               genetic_algorithm_settings%crossover_range_factor
+  write(*,*) " mutant_probability = ",                                         &
+                                   genetic_algorithm_settings%mutant_probability
+  write(*,*) " chromosome_mutation_rate = ",                                   &
+                             genetic_algorithm_settings%chromosome_mutation_rate
+  write(*,*) " mutation_range_factor = ",                                      &
+                                genetic_algorithm_settings%mutation_range_factor
+  write(*,'(A)') " /"
+  write(*,*)
+
+end subroutine print_genetic_algorithm_settings
+
+!=============================================================================80
+!
 ! Checks simplex_settings type for valid entries
 !
 !=============================================================================80
@@ -1668,6 +1771,25 @@ subroutine check_simplex_settings(simplex_settings, errval, errmsg)
   end if
 
 end subroutine check_simplex_settings
+
+!=============================================================================80
+!
+! Prints simplex_settings
+!
+!=============================================================================80
+subroutine print_simplex_settings(simplex_settings)
+
+  use types, only : simplex_settings_type
+
+  type(simplex_settings_type), intent(in) :: simplex_settings
+
+  write(*,'(A)') " &simplex_options"
+  write(*,*) " simplex_tol = ", simplex_settings%simplex_tol
+  write(*,*) " simplex_maxit = ", simplex_settings%simplex_maxit
+  write(*,'(A)') " /"
+  write(*,*)
+
+end subroutine print_simplex_settings
 
 !=============================================================================80
 !
@@ -1715,6 +1837,32 @@ end subroutine check_xfoil_settings
 
 !=============================================================================80
 !
+! Prints xfoil_settings
+!
+!=============================================================================80
+subroutine print_xfoil_settings(xfoil_settings)
+
+  use types, only : xfoil_settings_type
+
+  type(xfoil_settings_type), intent(in) :: xfoil_settings
+
+  write(*,'(A)') " &xfoil_run_options"
+  write(*,*) " ncrit = ", xfoil_settings%ncrit
+  write(*,*) " xtript = ", xfoil_settings%xtript
+  write(*,*) " xtripb = ", xfoil_settings%xtripb
+  write(*,*) " viscous_mode = ", xfoil_settings%viscous_mode
+  write(*,*) " silent_mode = ", xfoil_settings%silent_mode
+  write(*,*) " bl_maxit = ", xfoil_settings%bl_maxit
+  write(*,*) " vaccel = ", xfoil_settings%vaccel
+  write(*,*) " fix_unconverged = ", xfoil_settings%fix_unconverged
+  write(*,*) " reinitialize = ", xfoil_settings%reinitialize
+  write(*,'(A)') " /"
+  write(*,*)
+
+end subroutine print_xfoil_settings
+
+!=============================================================================80
+!
 ! Checks xfoil_paneling_settings type for valid entries
 !
 !=============================================================================80
@@ -1730,7 +1878,110 @@ subroutine check_xfoil_paneling_settings(xfoil_paneling_settings, errval,      &
   errval = 0
   errmsg = ''
 
+  if (xfoil_paneling_settings%npan < 20) then
+    errval = 1
+    errmsg = "npan must be >= 20."
+    return
+  end if
+  if (xfoil_paneling_settings%cvpar <= 0.d0) then
+    errval = 1
+    errmsg = "cvpar must be > 0."
+    return
+  end if
+  if (xfoil_paneling_settings%cterat <= 0.d0) then
+    errval = 1
+    errmsg = "cterat must be > 0."
+    return
+  end if
+  if (xfoil_paneling_settings%ctrrat <= 0.d0) then
+    errval = 1
+    errmsg = "ctrrat must be > 0."
+    return
+  end if
+  if (xfoil_paneling_settings%xsref1 < 0.d0) then
+    errval = 1
+    errmsg = "xsref1 must be >= 0."
+    return
+  end if
+  if (xfoil_paneling_settings%xsref2 < xsref1) then
+    errval = 1
+    errmsg = "xsref2 must be >= xsref1"
+    return
+  end if
+  if (xfoil_paneling_settings%xsref2 > 1.d0) then
+    errval = 1
+    errmsg = "xsref2 must be <= 1."
+    return
+  end if
+  if (xfoil_paneling_settings%xpref1 < 0.d0) then
+    errval = 1
+    errmsg = "xpref1 must be >= 0."
+    return
+  end if
+  if (xfoil_paneling_settings%xpref2 < xpref1) then
+    errval = 1
+    errmsg = "xpref2 must be >= xpref1"
+    return
+  end if
+  if (xfoil_paneling_settings%xpref2 > 1.d0) then
+    errval = 1
+    errmsg = "xpref2 must be <= 1."
+    return
+  end if
+
 end subroutine check_xfoil_paneling_settings
+
+!=============================================================================80
+!
+! Prints xfoil_paneling_settings
+!
+!=============================================================================80
+subroutine print_xfoil_paneling_settings(xfoil_paneling_settings)
+
+  use types, only : xfoil_paneling_settings_type
+
+  type(xfoil_paneling_settings_type), intent(in) :: xfoil_paneling_settings
+
+  write(*,'(A)') " &xfoil_paneling_options"
+  write(*,*) " npan = ", xfoil_paneling_settings%npan
+  write(*,*) " cvpar = ", xfoil_paneling_settings%cvpar
+  write(*,*) " cterat = ", xfoil_paneling_settings%cterat
+  write(*,*) " ctrrat = ", xfoil_paneling_settings%ctrrat
+  write(*,*) " xsref1 = ", xfoil_paneling_settings%xsref1
+  write(*,*) " xsref2 = ", xfoil_paneling_settings%xsref2
+  write(*,*) " xpref1 = ", xfoil_paneling_settings%xpref1
+  write(*,*) " xpref2 = ", xfoil_paneling_settings%xpref2
+  write(*,'(A)') " /"
+  write(*,*)
+
+end subroutine print_xfoil_paneling_settings
+
+!=============================================================================80
+!
+! Prints matchfoil_settings
+!
+!=============================================================================80
+subroutine print_matchfoil_settings(matchfoil_settings)
+
+  use types, only : matchfoil_settings_type
+
+  type(matchfoil_settings_type), intent(in) :: matchfoil_settings
+
+  character(80) :: matchfoil_file
+
+! Convert char arrays to fortran strings
+
+  call convert_char_to_fortran(matchfoil_settings%matchfoil_file,              &
+                               size(matchfoil_settings%matchfoil_file,1),      &
+                               matchfoil_file)
+
+  write(*,'(A)') " &matchfoil_options"
+  write(*,*) " match_foils = ", matchfoil_settings%match_foils
+  write(*,*) " matchfoil_file = '"//trim(matchfoil_file)//"'"
+  write(*,'(A)') " /"
+  write(*,*)
+
+end subroutine print_matchfoil_settings
 
 !=============================================================================80
 !

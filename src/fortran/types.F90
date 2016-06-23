@@ -50,7 +50,6 @@ module types
   end type operating_points_settings_type
 
   type, bind(c) :: constraints_settings_type
-    character(kind=C_CHAR) :: seed_violation_handling(4)
     real(kind=C_DOUBLE) :: min_thickness, max_thickness, min_te_angle
     real(kind=C_DOUBLE) :: min_camber, max_camber
     logical(kind=C_BOOL) :: check_curvature
