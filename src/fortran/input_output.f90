@@ -150,7 +150,7 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 ! Other variables
 
   integer :: i, iunit, ioerr, iostat1
-  integer :: nbot_actual, nmoment_constraint
+  integer :: nmoment_constraint
   character :: choice
 
   namelist /optimization_options/ search_type, global_search, local_search,    &
@@ -353,7 +353,7 @@ subroutine read_inputs(input_file, max_op_points, optimization_settings,       &
 
 ! Check constraints namelist for errors
 
-  call check_constraints_settings(constraints_settings, nopppoint,             &
+  call check_constraints_settings(constraints_settings, noppoint,              &
                                   max_op_points, errval, errmsg)
   if (errval /= 0) return
 
@@ -716,240 +716,6 @@ end subroutine read_inputs
 
 !=============================================================================80
 !
-! Subroutine to read inputs from namelist file - for xfoil_only
-!
-!=============================================================================80
-subroutine read_inputs_xfoil_only(input_file, max_op_points, airfoil_file,     &
-                                  operating_points_settings, xfoil_settings,   &
-                                  xfoil_paneling_settings, errval, errmsg)
-
-  use iso_c_binding, only : C_BOOL
-  use types, only : operating_points_settings_type, xfoil_settings_type,       &
-                    xfoil_paneling_settings_type
-
-  character(*), intent(in) :: input_file
-  integer, intent(in) :: max_op_points
-  character(80), intent(out) :: airfoil_file
-  integer, intent(out) :: errval
-  character(80), intent(out) :: errmsg
-
-! Derived types to group settings
-
-  type(operating_points_settings_type), intent(out) :: operating_points_settings
-  type(xfoil_settings_type), intent(out) :: xfoil_settings
-  type(xfoil_paneling_settings_type), intent(out) :: xfoil_paneling_settings
-
-! Operating points
-
-  integer :: noppoint
-  logical(kind=C_BOOL) :: use_flap
-  double precision :: x_flap, y_flap
-  character(7), dimension(max_op_points) :: op_mode
-  double precision, dimension(max_op_points) :: op_point, reynolds, mach
-  double precision, dimension(max_op_points) :: flap_degrees
-
-! Xfoil run options
-
-  double precision :: ncrit, xtript, xtripb
-  logical(kind=C_BOOL) :: viscous_mode, silent_mode
-  integer :: bl_maxit
-  double precision :: vaccel
-  logical(kind=C_BOOL) :: fix_unconverged, reinitialize
-
-! Xfoil paneling options
-
-  integer :: npan
-  double precision :: cvpar, cterat, ctrrat, xsref1, xsref2, xpref1, xpref2
-
-  integer :: i, iunit, ioerr, iostat1
-  character(30) :: text
-
-  namelist /airfoil_to_load/ airfoil_file
-  namelist /operating_conditions/ noppoint, op_mode, op_point, reynolds, mach, &
-            use_flap, x_flap, y_flap, flap_degrees
-  namelist /xfoil_run_options/ ncrit, xtript, xtripb, viscous_mode,            &
-            silent_mode, bl_maxit, vaccel, fix_unconverged, reinitialize
-  namelist /xfoil_paneling_options/ npan, cvpar, cterat, ctrrat, xsref1,       &
-            xsref2, xpref1, xpref2
-
-  errval = 0
-  errmsg = ''
-
-! Open input file
-
-  iunit = 12
-  open(unit=iunit, file=input_file, status='old', iostat=ioerr)
-  if (ioerr /= 0) then
-    errval = 1
-    errmsg = 'could not find input file '//trim(input_file)//'.'
-    return
-  end if
-
-! Read airfoil_to_load namelist options
-
-  read(iunit, iostat=iostat1, nml=airfoil_to_load)
-  call namelist_check('airfoil_to_load', iostat1, 'stop', errval, errmsg)
-  if (errval /= 0) return
-
-! Set defaults for operating conditions
-
-  noppoint = 1
-  use_flap = .false.
-  x_flap = 0.75d0
-  y_flap = 0.d0
-  op_mode(:) = 'spec-cl'
-  op_point(:) = 0.d0
-  reynolds(:) = 1.0D+05
-  mach(:) = 0.d0
-  flap_degrees = 0.d0
-
-! Read operating conditions
-
-  read(iunit, iostat=iostat1, nml=operating_conditions)
-  call namelist_check('operating_conditions', iostat1, 'stop', errval, errmsg)
-  if (errval /= 0) return
-
-! Set default xfoil aerodynamics and paneling options
-
-  ncrit = 9.d0
-  xtript = 1.d0
-  xtripb = 1.d0
-  viscous_mode = .true.
-  silent_mode = .true.
-  bl_maxit = 100
-  vaccel = 0.01d0
-  fix_unconverged = .true.
-  reinitialize = .true.
-
-  npan = 160
-  cvpar = 1.d0
-  cterat = 0.15d0
-  ctrrat = 0.2d0
-  xsref1 = 1.d0
-  xsref2 = 1.d0
-  xpref1 = 1.d0
-  xpref2 = 1.d0
-
-! Read xfoil options
-
-  rewind(iunit)
-  read(iunit, iostat=iostat1, nml=xfoil_run_options)
-  call namelist_check('xfoil_run_options', iostat1, 'warn', errval, errmsg)
-  if (errval /= 0) return
-  rewind(iunit)
-  read(iunit, iostat=iostat1, nml=xfoil_paneling_options)
-  call namelist_check('xfoil_paneling_options', iostat1, 'warn', errval, errmsg)
-  if (errval /= 0) return
-
-! Close the input file
-
-  close(iunit)
-
-! Echo namelist options for checking purposes
-
-  write(*,*)
-  write(*,*) 'Echoing program options:'
-  write(*,*)
-
-! airfoil_to_load namelist
-
-  write(*,'(A)') " &airfoil_to_load"
-  write(*,*) " airfoil_file = '"//trim(airfoil_file)//"'"
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Operating conditions namelist
-
-  write(*,'(A)') " &operating_conditions"
-  write(*,*) " noppoint = ", noppoint
-  write(*,*) " use_flap = ", use_flap
-  write(*,*) " x_flap = ", x_flap
-  write(*,*) " y_flap = ", y_flap
-  write(*,*)
-  do i = 1, noppoint
-    write(text,*) i
-    text = adjustl(text)
-    write(*,*) " op_mode("//trim(text)//") = '"//trim(op_mode(i))//"'"
-    write(*,*) " op_point("//trim(text)//") = ", op_point(i)
-    write(*,'(A,es17.8)') "  reynolds("//trim(text)//") = ", reynolds(i)
-    write(*,*) " mach("//trim(text)//") = ", mach(i)
-    write(*,*) " flap_degrees("//trim(text)//") = ", flap_degrees(i)
-    if (i < noppoint) write(*,*)
-  end do
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Xfoil run options namelist
-
-  write(*,'(A)') " &xfoil_run_options"
-  write(*,*) " ncrit = ", ncrit
-  write(*,*) " xtript = ", xtript
-  write(*,*) " xtripb = ", xtripb
-  write(*,*) " viscous_mode = ", viscous_mode
-  write(*,*) " silent_mode = ", silent_mode
-  write(*,*) " bl_maxit = ", bl_maxit
-  write(*,*) " vaccel = ", vaccel
-  write(*,*) " fix_unconverged = ", fix_unconverged
-  write(*,*) " reinitialize = ", reinitialize
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Xfoil paneling options namelist
-
-  write(*,'(A)') " &xfoil_paneling_options"
-  write(*,*) " npan = ", npan
-  write(*,*) " cvpar = ", cvpar
-  write(*,*) " cterat = ", cterat
-  write(*,*) " ctrrat = ", ctrrat
-  write(*,*) " xsref1 = ", xsref1
-  write(*,*) " xsref2 = ", xsref2
-  write(*,*) " xpref1 = ", xpref1
-  write(*,*) " xpref2 = ", xpref2
-  write(*,'(A)') " /"
-  write(*,*)
-
-! Populate operating_points_settings derived type
-
-  operating_points_settings%noppoint = noppoint
-  operating_points_settings%use_flap = use_flap
-  operating_points_settings%x_flap = x_flap
-  operating_points_settings%y_flap = y_flap
-  do i = 1, max_op_points
-    call convert_char_to_c(op_mode(i), len(op_mode(i)),                        &
-                           operating_points_settings%op_mode(:,i))
-  end do
-  operating_points_settings%op_point = op_point
-  operating_points_settings%reynolds = reynolds
-  operating_points_settings%mach = mach
-  operating_points_settings%flap_degrees = flap_degrees
-
-! Populate xfoil_settings derived type
-
-  xfoil_settings%ncrit = ncrit
-  xfoil_settings%xtript = xtript
-  xfoil_settings%xtripb = xtripb
-  xfoil_settings%viscous_mode = viscous_mode
-  xfoil_settings%silent_mode = silent_mode
-  xfoil_settings%bl_maxit = bl_maxit
-  xfoil_settings%vaccel = vaccel
-  xfoil_settings%fix_unconverged = fix_unconverged
-  xfoil_settings%reinitialize = reinitialize
-  
-! Populate xfoil_paneling_settings derived type
-
-  xfoil_paneling_settings%npan = npan
-  xfoil_paneling_settings%cvpar = cvpar
-  xfoil_paneling_settings%cterat = cterat
-  xfoil_paneling_settings%ctrrat = ctrrat
-  xfoil_paneling_settings%xsref1 = xsref1
-  xfoil_paneling_settings%xsref2 = xsref2
-  xfoil_paneling_settings%xpref1 = xpref1
-  xfoil_paneling_settings%xpref2 = xpref2
-
-end subroutine read_inputs_xfoil_only
-
-!=============================================================================80
-!
 ! Prints error and stops or warns for bad namelist read
 !
 !=============================================================================80
@@ -1302,7 +1068,8 @@ subroutine print_operating_points_settings(operating_points_settings,          &
     write(*,*) " optimization_type("//trim(text)//") = '"//                    &
                trim(optimization_type(i))//"'"
     write(*,*) " op_mode("//trim(text)//") = '"//trim(op_mode(i))//"'"
-    write(*,*) " op_point("//trim(text)//") = ", op_point(i)
+    write(*,*) " op_point("//trim(text)//") = ",                               &
+                                           operating_points_settings%op_point(i)
     write(*,'(A,es17.8)') "  reynolds("//trim(text)//") = ",                   &
                           operating_points_settings%reynolds(i)
     write(*,*) " mach("//trim(text)//") = ", operating_points_settings%mach(i)
@@ -1310,8 +1077,9 @@ subroutine print_operating_points_settings(operating_points_settings,          &
                trim(flap_selection(i))//"'"
     write(*,*) " flap_degrees("//trim(text)//") = ",                           &
                operating_points_settings%flap_degrees(i)
-    write(*,*) " weighting("//trim(text)//") = ", weighting(i)
-    if (i < noppoint) write(*,*)
+    write(*,*) " weighting("//trim(text)//") = ",                              &
+                                          operating_points_settings%weighting(i)
+    if (i < operating_points_settings%noppoint) write(*,*)
   end do
   write(*,'(A)') " /"
   write(*,*)
@@ -1456,20 +1224,20 @@ subroutine print_constraints_settings(constraints_settings, noppoint,          &
     write(*,*) " moment_constraint_type("//trim(text)//") = "//                &
                trim(moment_constraint_type(i))
     write(*,*) " min_moment("//trim(text)//") = ",                             &
-               constraint_settings%min_moment(i)
+               constraints_settings%min_moment(i)
   end do
-  write(*,*) " min_te_angle = ", constraint_settings%min_te_angle
-  write(*,*) " check_curvature = ", constraint_settings%check_curvature
+  write(*,*) " min_te_angle = ", constraints_settings%min_te_angle
+  write(*,*) " check_curvature = ", constraints_settings%check_curvature
   write(*,*) " max_curv_reverse_top = ",                                       &
-                                        constraint_settings%max_curv_reverse_top
+                                       constraints_settings%max_curv_reverse_top
   write(*,*) " max_curv_reverse_bot = ",                                       &
-                                        constraint_settings%max_curv_reverse_bot
-  write(*,*) " curv_threshold = ", constraint_settings%curv_threshold
-  write(*,*) " symmetrical = ", constraint_settings%symmetrical
-  write(*,*) " min_flap_degrees = ", constraint_settings%min_flap_degrees
-  write(*,*) " max_flap_degrees = ", constraint_settings%max_flap_degrees
-  write(*,*) " min_camber = ", constraint_settings%min_camber
-  write(*,*) " max_camber = ", constraint_settings%max_camber
+                                       constraints_settings%max_curv_reverse_bot
+  write(*,*) " curv_threshold = ", constraints_settings%curv_threshold
+  write(*,*) " symmetrical = ", constraints_settings%symmetrical
+  write(*,*) " min_flap_degrees = ", constraints_settings%min_flap_degrees
+  write(*,*) " max_flap_degrees = ", constraints_settings%max_flap_degrees
+  write(*,*) " min_camber = ", constraints_settings%min_camber
+  write(*,*) " max_camber = ", constraints_settings%max_camber
   write(*,'(A)') " /"
   write(*,*)
 
@@ -1903,7 +1671,7 @@ subroutine check_xfoil_paneling_settings(xfoil_paneling_settings, errval,      &
     errmsg = "xsref1 must be >= 0."
     return
   end if
-  if (xfoil_paneling_settings%xsref2 < xsref1) then
+  if (xfoil_paneling_settings%xsref2 < xfoil_paneling_settings%xsref1) then
     errval = 1
     errmsg = "xsref2 must be >= xsref1"
     return
@@ -1918,7 +1686,7 @@ subroutine check_xfoil_paneling_settings(xfoil_paneling_settings, errval,      &
     errmsg = "xpref1 must be >= 0."
     return
   end if
-  if (xfoil_paneling_settings%xpref2 < xpref1) then
+  if (xfoil_paneling_settings%xpref2 < xfoil_paneling_settings%xpref1) then
     errval = 1
     errmsg = "xpref2 must be >= xpref1"
     return
