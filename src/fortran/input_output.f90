@@ -825,14 +825,14 @@ subroutine check_optimization_settings(optimization_settings, errval, errmsg)
     errmsg = "shape_functions must be 'hicks-henne' or 'naca'."
     return
   end if
-  if (optimization_settings%nfunctions_top < 1) then
+  if (optimization_settings%nfunctions_top < 0) then
     errval = 1
-    errmsg = "nfunctions_top must be > 0."
+    errmsg = "nfunctions_top must be >= 0."
     return
   end if
-  if (optimization_settings%nfunctions_bot < 1) then
+  if (optimization_settings%nfunctions_bot < 0) then
     errval = 1
-    errmsg = "nfunctions_bot must be > 0."
+    errmsg = "nfunctions_bot must be >= 0."
     return
   end if
   if (optimization_settings%initial_perturb <= 0.d0) then

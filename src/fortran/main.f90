@@ -143,6 +143,6 @@ program main
   deallocate(zseedb)
 !FIXME: put in optimization driver
   deallocate(optdesign)
-  deallocate(constrained_dvs)
+  if (allocated(constrained_dvs)) deallocate(constrained_dvs)
 
 end program main
